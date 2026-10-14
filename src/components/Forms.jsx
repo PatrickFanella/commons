@@ -35,7 +35,7 @@ export function useAction() {
   }
   return { busy, error, setError, run };
 }
-function RecoveryKey({ code, onDone }) {
+export function RecoveryKey({ code, onDone }) {
   const [copied, setCopied] = useState(false);
   const [ack, setAck] = useState(false);
   const download = () => {
@@ -59,7 +59,7 @@ function RecoveryKey({ code, onDone }) {
       </span>
       <h2>Your recovery key.</h2>
       <p className="form-intro">
-        This key lets you reset your password. We don’t send recovery emails.
+        This key lets you reset your password even without a verified email.
         It’s shown only once, and anyone with it can access your account.
       </p>
       <div className="recovery-code">
@@ -104,6 +104,7 @@ export function AuthForm({
   onSession,
   onDone,
   onRecoveryChange,
+  emailEnabled,
 }) {
   const action = useAction();
   const [recovery, setRecovery] = useState(null);
@@ -251,9 +252,14 @@ export function AuthForm({
             New here? Create an account
           </button>
         )}
+        {emailEnabled && (
+          <button onClick={() => onMode("request-reset")}>
+            Reset using verified email
+          </button>
+        )}
         {!recover && (
           <button onClick={() => onMode("recover")}>
-            Forgot your password?
+            Recover using your saved key
           </button>
         )}
         {mode !== "login" && (
@@ -271,8 +277,8 @@ export function ProjectForm({ project, onSuccess }) {
       <span className="eyebrow">MAKE ROOM FOR YOUR IDEA</span>
       <h2>{editing ? "Keep the commons updated." : "Share a project."}</h2>
       <p className="form-intro">
-        Share your own open-source work. Tell people what’s possible and where
-        they can help.
+        List an open-source project. Tell people what’s possible and where they
+        can help.
       </p>
       <form
         onSubmit={(e) => {
@@ -292,6 +298,13 @@ export function ProjectForm({ project, onSuccess }) {
         }}
       >
         <ErrorMessage error={action.error} />
+        {!editing && (
+          <p className="reference-notice">
+            New listings start unclaimed. A repository maintainer can verify
+            write access to manage the project here. Listing it does not make
+            you its owner.
+          </p>
+        )}
         <label>
           Project name
           <input
@@ -308,11 +321,16 @@ export function ProjectForm({ project, onSuccess }) {
             name="repo"
             type="url"
             defaultValue={project?.repo}
+            readOnly={!!project?.repositoryVerified}
             required
             pattern="https://.*"
             placeholder="https://github.com/you/project"
           />
-          <small>Use an HTTPS link to your public source code.</small>
+          <small>
+            {project?.repositoryVerified
+              ? "Repository access is verified. Contact the moderators about a repository move."
+              : "Use the public GitHub or SUBCULT Gitea repository URL."}
+          </small>
         </label>
         <label>
           A short introduction
@@ -373,7 +391,6 @@ export function ProjectForm({ project, onSuccess }) {
           <textarea
             name="needs"
             defaultValue={project?.needs}
-            required
             maxLength={1000}
             placeholder="Developers, designers, testers… Tell them how they can help."
           />

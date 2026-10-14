@@ -1,3 +1,4 @@
+import { ClaimProject, ProjectUpdates } from "./ProjectCommunity.jsx";
 import React, { useEffect, useState, useRef } from "react";
 import {
   ArrowUpRight,
@@ -374,6 +375,8 @@ export function ProjectPage({
 }) {
   const [data, setData] = useState(null),
     [messages, setMessages] = useState([]),
+    [updates, setUpdates] = useState([]),
+    [replyTo, setReplyTo] = useState(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [tab, setTab] = useState("Overview");
@@ -387,15 +390,24 @@ export function ProjectPage({
     controller.current = current;
     setError("");
     try {
-      const [d, m] = await Promise.all([
+      const [d, m, u] = await Promise.all([
         api(`/projects/${encodeURIComponent(id)}`, { signal: current.signal }),
         api(`/projects/${encodeURIComponent(id)}/messages`, {
+          signal: current.signal,
+        }),
+        api(`/projects/${encodeURIComponent(id)}/updates`, {
           signal: current.signal,
         }),
       ]);
       if (seq === request.current) {
         setData(d);
         setMessages(m.messages);
+        setUpdates(u.updates);
+        setReplyTo((previous) =>
+          previous && m.messages.some((message) => message.id === previous.id)
+            ? previous
+            : null,
+        );
       }
     } catch (e) {
       if (seq === request.current && e.name !== "AbortError") {
@@ -407,7 +419,15 @@ export function ProjectPage({
     }
   }
   useEffect(() => {
-    setTab("Overview");
+    const requested = new URLSearchParams(location.search).get("tab");
+    setTab(
+      requested === "updates"
+        ? "Updates"
+        : requested === "discussion"
+          ? "Discussion"
+          : "Overview",
+    );
+    setReplyTo(null);
   }, [id]);
   useEffect(() => {
     setLoading(true);
@@ -417,6 +437,23 @@ export function ProjectPage({
       controller.current?.abort();
     };
   }, [id, revision]);
+  useEffect(() => {
+    if (!data || loading) return;
+    const target = location.hash.slice(1);
+    if (!target.startsWith("message-") && !target.startsWith("update-")) return;
+    const frame = requestAnimationFrame(() =>
+      document.getElementById(target)?.scrollIntoView({ block: "start" }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [data, loading, tab]);
+  const selectTab = (next) => {
+    setTab(next);
+    history.replaceState(
+      history.state,
+      "",
+      `${location.pathname}${next === "Overview" ? "" : `?tab=${next.toLowerCase()}`}`,
+    );
+  };
   if (loading)
     return (
       <div className="loading" role="status">
@@ -446,7 +483,7 @@ export function ProjectPage({
           <span className="eyebrow">{p.category.toUpperCase()}</span>
           <h1>{p.name}</h1>
           <div className="detail-author">
-            {p.external ? "Curated reference · " : "Built by "}
+            {p.external ? "Unclaimed reference · " : "Built by "}
             <button
               onClick={() => !p.external && navigate(`/builders/${p.author}`)}
             >
@@ -469,6 +506,11 @@ export function ProjectPage({
               {p.contributors} collaborators
             </span>
             <span className="detail-status">{p.status}</span>
+            {p.repositoryVerified && (
+              <span className="verified-repo">
+                <Check size={15} /> Repository access verified
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -545,21 +587,32 @@ export function ProjectPage({
         <div className="reference-notice">
           <Mark size={18} />
           <p>
-            This is an independent, curated reference. Its maintainers haven’t
-            joined Commons. Collaboration and bookmark counts reflect activity
+            This is an unclaimed repository listing. No maintainer has claimed
+            it on Commons. Collaboration and bookmark counts reflect activity
             here; visit the source repository to contribute upstream.
           </p>
         </div>
       )}
+      {p.external && (
+        <ClaimProject
+          key={p.id}
+          project={p}
+          user={user}
+          onLogin={onLogin}
+          refresh={refresh}
+          notify={notify}
+        />
+      )}
       <ErrorMessage error={action.error} />
       <div className="detail-tabs">
-        {["Overview", "Discussion", "Builders"].map((t) => (
+        {["Overview", "Updates", "Discussion", "Builders"].map((t) => (
           <button
             className={tab === t ? "active" : ""}
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => selectTab(t)}
           >
             {t}
+            {t === "Updates" && ` (${updates.length})`}
             {t === "Discussion" && ` (${messages.length})`}
             {t === "Builders" && ` (${data.members.length})`}
           </button>
@@ -580,11 +633,24 @@ export function ProjectPage({
               <Users size={18} /> There’s a place for you here.
             </h3>
             <p>{p.needs}</p>
-            <button className="text-link" onClick={() => setTab("Discussion")}>
+            <button
+              className="text-link"
+              onClick={() => selectTab("Discussion")}
+            >
               Start a conversation <ArrowRight size={15} />
             </button>
           </section>
         </div>
+      ) : tab === "Updates" ? (
+        <ProjectUpdates
+          project={p}
+          updates={updates}
+          user={user}
+          owner={owner}
+          load={load}
+          onReport={onReport}
+          notify={notify}
+        />
       ) : tab === "Builders" ? (
         <section className="members-list">
           {data.members.length ? (
@@ -618,40 +684,76 @@ export function ProjectPage({
         <section className="project-discussion">
           <div className="discussion">
             {messages.length ? (
-              messages.map((m) => (
-                <article key={m.id}>
-                  <Avatar name={m.author.displayName} />
-                  <div>
-                    <div className="message-heading">
-                      <button
-                        onClick={() =>
-                          navigate(`/builders/${m.author.username}`)
-                        }
-                      >
-                        {m.author.displayName}
-                      </button>
-                      <small>{dateLabel(m.createdAt)}</small>
-                      <span className="message-actions">
-                        {user && (user.id === m.author.id || owner) && (
-                          <button
-                            aria-label="Delete message"
-                            onClick={() => onDelete(null, m.id)}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
+              messages
+                .filter((m) => !m.parentId)
+                .flatMap((root) => [
+                  root,
+                  ...messages.filter((m) => m.parentId === root.id),
+                ])
+                .map((m) => (
+                  <article
+                    key={m.id}
+                    id={`message-${m.id}`}
+                    className={m.parentId ? "discussion-reply" : ""}
+                  >
+                    <Avatar name={m.author.displayName} />
+                    <div>
+                      <div className="message-heading">
                         <button
-                          aria-label="Report message"
-                          onClick={() => onReport({ messageId: m.id })}
+                          onClick={() =>
+                            navigate(`/builders/${m.author.username}`)
+                          }
                         >
-                          <Flag size={13} />
+                          {m.author.displayName}
                         </button>
-                      </span>
+                        <small>{dateLabel(m.createdAt)}</small>
+                        <span className="message-actions">
+                          {user && (user.id === m.author.id || owner) && (
+                            <button
+                              aria-label="Delete message"
+                              onClick={() => onDelete(null, m.id)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                          <button
+                            aria-label="Report message"
+                            onClick={() => onReport({ messageId: m.id })}
+                          >
+                            <Flag size={13} />
+                          </button>
+                        </span>
+                      </div>
+                      {m.parentId && (
+                        <small className="reply-context">
+                          Reply to{" "}
+                          {
+                            messages.find((parent) => parent.id === m.parentId)
+                              ?.author.displayName
+                          }
+                        </small>
+                      )}
+                      <p className="long-copy">{m.text}</p>
+                      {!m.parentId && (
+                        <button
+                          className="text-link"
+                          onClick={() => {
+                            if (!user) {
+                              onLogin();
+                              return;
+                            }
+                            setReplyTo(m);
+                            document
+                              .querySelector("textarea[name=message]")
+                              ?.focus();
+                          }}
+                        >
+                          Reply
+                        </button>
+                      )}
                     </div>
-                    <p>{m.text}</p>
-                  </div>
-                </article>
-              ))
+                  </article>
+                ))
             ) : (
               <div className="discussion-empty">
                 <MessageSquare size={26} />
@@ -670,17 +772,33 @@ export function ProjectPage({
                 action.run(async () => {
                   await api(`/projects/${id}/messages`, {
                     method: "POST",
-                    body: { text },
+                    body: { text, parentId: replyTo?.id ?? null },
                   });
                   form.reset();
+                  setReplyTo(null);
                   await load();
                   notify("Message posted.");
                 });
               }}
             >
               <ErrorMessage error={action.error} />
+              {replyTo && (
+                <div className="reply-target">
+                  <p>
+                    Replying to <strong>{replyTo.author.displayName}</strong>
+                  </p>
+                  <p className="long-copy">{replyTo.text.slice(0, 200)}</p>
+                  <button
+                    type="button"
+                    className="text-link"
+                    onClick={() => setReplyTo(null)}
+                  >
+                    Cancel reply
+                  </button>
+                </div>
+              )}
               <label>
-                Your message
+                {replyTo ? "Your reply" : "Your message"}
                 <textarea
                   name="message"
                   required

@@ -1,3 +1,6 @@
+import { installCommunity } from "./community.js";
+import { installAccountEmail } from "./account-email.js";
+import { repositoryInfo, repositoryKey } from "./repository.js";
 import express from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -202,7 +205,12 @@ export function createApp(options = {}) {
           ),
         }
       : null;
-  const privateUser = (u) => ({ ...publicUser(u), role: u.role });
+  const privateUser = (u) => ({
+    ...publicUser(u),
+    role: u.role,
+    email: u.email,
+    pendingEmail: u.pending_email,
+  });
   const project = (p, viewer) => ({
     id: p.id,
     name: p.name,
@@ -265,6 +273,8 @@ export function createApp(options = {}) {
           : "",
     featured: !!p.featured,
     external: !!p.external,
+    repositoryVerified: !!p.repository_verified,
+    claimable: !!p.external && !p.owner_id && !!repositoryInfo(p.repo),
   });
   const visible = (id) => {
     const p = get(
@@ -281,6 +291,7 @@ export function createApp(options = {}) {
   const message = (m) => ({
     id: m.id,
     projectId: m.project_id,
+    parentId: m.parent_id,
     text: m.text,
     createdAt: m.created_at,
     updatedAt: m.updated_at,
@@ -381,8 +392,55 @@ export function createApp(options = {}) {
     });
     return { user: privateUser(u), csrfToken };
   };
+  const mail = installAccountEmail(
+    app,
+    {
+      db,
+      get,
+      run,
+      atomic,
+      requireUser,
+      authLimiter,
+      fail,
+      string,
+      password,
+      credential,
+      matches,
+      passwordHash,
+      privateUser,
+      hash,
+      secret,
+      publicUrl,
+      sessionCookie,
+      cookieOptions,
+    },
+    options.email,
+  );
+  app.locals.mail = mail;
+  const { record: recordActivity } = installCommunity(
+    app,
+    {
+      get,
+      all,
+      run,
+      atomic,
+      visible,
+      requireUser,
+      authLimiter,
+      fail,
+      string,
+      publicUser,
+      hash,
+      secret,
+      now,
+      publicUrl,
+    },
+    options,
+  );
   app.get("/api/health", (req, res) => res.json({ ok: true }));
-  app.get("/api/site", (req, res) => res.json({ operatorName, contactEmail }));
+  app.get("/api/site", (req, res) =>
+    res.json({ operatorName, contactEmail, emailEnabled: mail.enabled }),
+  );
   app.get("/api/auth/session", (req, res) =>
     res.json({
       user: req.user ? privateUser(req.user) : null,
@@ -454,6 +512,7 @@ export function createApp(options = {}) {
         u.id,
       );
       run("DELETE FROM sessions WHERE user_id=?", u.id);
+      run("DELETE FROM auth_tokens WHERE user_id=?", u.id);
     });
     res
       .clearCookie(sessionCookie, cookieOptions)
@@ -468,6 +527,10 @@ export function createApp(options = {}) {
       run(
         "UPDATE users SET password=? WHERE id=?",
         passwordHash(pw),
+        req.user.id,
+      );
+      run(
+        "DELETE FROM auth_tokens WHERE user_id=? AND purpose='reset'",
         req.user.id,
       );
       run(
@@ -568,48 +631,97 @@ export function createApp(options = {}) {
     });
   });
   app.post("/api/projects", requireUser, (req, res) => {
-    const d = projectInput(req.body),
+    const { listingType = "reference", ...fields } = req.body;
+    if (listingType !== "reference")
+      fail(
+        400,
+        "New repositories start unclaimed. Verify repository access after listing.",
+      );
+    const d = projectInput(fields),
       id = randomUUID(),
       date = now();
-    run(
-      "INSERT INTO projects(id,owner_id,author,name,description,details,repo,category,tags,needs,status,art,letter,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-      id,
-      req.user.id,
-      req.user.username,
-      d.name,
-      d.description,
-      d.details,
-      d.repo,
-      d.category,
-      JSON.stringify(d.tags),
-      d.needs,
-      d.status,
-      d.art,
-      d.name[0].toUpperCase(),
-      date,
-      date,
-    );
+    const info = repositoryInfo(d.repo),
+      repoKey = repositoryKey(d.repo);
+    if (!info)
+      fail(
+        400,
+        "Unclaimed references currently support GitHub and SUBCULT Gitea repositories.",
+      );
+    if (repoKey && get("SELECT 1 FROM projects WHERE repo_key=?", repoKey))
+      fail(
+        409,
+        "This repository is already listed. Find its existing listing or contact the moderators.",
+        "REPOSITORY_EXISTS",
+      );
+    atomic(() => {
+      run(
+        "INSERT INTO projects(id,owner_id,listed_by,author,name,description,details,repo,repo_key,category,tags,needs,status,art,letter,external,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        id,
+        null,
+        req.user.id,
+        info.owner,
+        d.name,
+        d.description,
+        d.details,
+        info?.url ?? d.repo,
+        repoKey,
+        d.category,
+        JSON.stringify(d.tags),
+        d.needs,
+        d.status,
+        d.art,
+        d.name[0].toUpperCase(),
+        1,
+        date,
+        date,
+      );
+      recordActivity(id, req.user.id, "reference_listed");
+    });
     res.status(201).json({ project: project(visible(id), req.user) });
   });
   app.patch("/api/projects/:id", requireUser, (req, res) => {
     const p = visible(req.params.id);
     owner(p, req.user);
     const d = projectInput(req.body, { ...p, tags: JSON.parse(p.tags) });
-    run(
-      "UPDATE projects SET name=?,description=?,details=?,repo=?,category=?,tags=?,needs=?,status=?,art=?,letter=?,updated_at=? WHERE id=?",
-      d.name,
-      d.description,
-      d.details,
-      d.repo,
-      d.category,
-      JSON.stringify(d.tags),
-      d.needs,
-      d.status,
-      d.art,
-      d.name[0].toUpperCase(),
-      now(),
-      p.id,
+    const repoKey = repositoryKey(d.repo);
+    if (p.repository_verified && repoKey !== p.repo_key)
+      fail(
+        409,
+        "A verified project cannot change its repository. Contact the moderators about a repository move.",
+      );
+    if (p.external && !repositoryInfo(d.repo))
+      fail(400, "Unclaimed references require a supported repository URL.");
+    if (
+      repoKey &&
+      get("SELECT 1 FROM projects WHERE repo_key=? AND id<>?", repoKey, p.id)
+    )
+      fail(409, "This repository is already listed.", "REPOSITORY_EXISTS");
+    const changed = Object.keys(d).some(
+      (key) =>
+        JSON.stringify(d[key]) !==
+        JSON.stringify(key === "tags" ? JSON.parse(p.tags) : p[key]),
     );
+    atomic(() => {
+      run(
+        "UPDATE projects SET name=?,description=?,details=?,repo=?,repo_key=?,category=?,tags=?,needs=?,status=?,art=?,letter=?,updated_at=? WHERE id=?",
+        d.name,
+        d.description,
+        d.details,
+        repositoryInfo(d.repo)?.url ?? d.repo,
+        repoKey,
+        d.category,
+        JSON.stringify(d.tags),
+        d.needs,
+        d.status,
+        d.art,
+        d.name[0].toUpperCase(),
+        now(),
+        p.id,
+      );
+      if (changed) recordActivity(p.id, req.user.id, "project_changed");
+      if (p.repo !== d.repo)
+        run("DELETE FROM repository_claims WHERE project_id=?", p.id);
+    });
     res.json({ project: project(visible(p.id), req.user) });
   });
   app.delete("/api/projects/:id", requireUser, (req, res) => {
@@ -634,29 +746,39 @@ export function createApp(options = {}) {
     const p = visible(req.params.id),
       joined = bool(req.body.joined, "Joined"),
       role = string(req.body.role ?? "", "Role", 80);
-    if (p.external) fail(409, "Curated references do not accept memberships.");
-    if (req.user.id === p.owner_id) {
-      if (!joined) fail(409, "The owner cannot leave their project.");
-    } else if (joined)
-      run(
-        "INSERT INTO memberships VALUES(?,?,?) ON CONFLICT(user_id,project_id) DO UPDATE SET role=excluded.role",
-        req.user.id,
-        p.id,
-        role,
-      );
-    else
-      run(
-        "DELETE FROM memberships WHERE user_id=? AND project_id=?",
-        req.user.id,
-        p.id,
-      );
+    const wasJoined = !!get(
+      "SELECT 1 FROM memberships WHERE user_id=? AND project_id=?",
+      req.user.id,
+      p.id,
+    );
+    atomic(() => {
+      if (p.external)
+        fail(409, "Curated references do not accept memberships.");
+      if (req.user.id === p.owner_id) {
+        if (!joined) fail(409, "The owner cannot leave their project.");
+      } else if (joined)
+        run(
+          "INSERT INTO memberships VALUES(?,?,?) ON CONFLICT(user_id,project_id) DO UPDATE SET role=excluded.role",
+          req.user.id,
+          p.id,
+          role,
+        );
+      else
+        run(
+          "DELETE FROM memberships WHERE user_id=? AND project_id=?",
+          req.user.id,
+          p.id,
+        );
+      if (joined && !wasJoined && req.user.id !== p.owner_id)
+        recordActivity(p.id, req.user.id, "member_joined");
+    });
     res.json({ project: project(p, req.user) });
   });
   app.get("/api/projects/:id/messages", (req, res) => {
     const p = visible(req.params.id);
     res.json({
       messages: all(
-        "SELECT m.* FROM messages m JOIN users u ON u.id=m.user_id WHERE project_id=? AND u.suspended=0 ORDER BY m.created_at ASC",
+        "SELECT m.* FROM messages m JOIN users u ON u.id=m.user_id LEFT JOIN messages parent ON parent.id=m.parent_id LEFT JOIN users parent_user ON parent_user.id=parent.user_id WHERE m.project_id=? AND u.suspended=0 AND (parent_user.id IS NULL OR parent_user.suspended=0) ORDER BY m.created_at ASC,m.id ASC",
         p.id,
       ).map(message),
     });
@@ -666,15 +788,38 @@ export function createApp(options = {}) {
       text = string(req.body.text, "Message", 3000, 1),
       id = randomUUID(),
       date = now();
-    run(
-      "INSERT INTO messages VALUES(?,?,?,?,?,?)",
-      id,
-      p.id,
-      req.user.id,
-      text,
-      date,
-      date,
-    );
+    const parentId = req.body.parentId ?? null;
+    if (parentId !== null) {
+      const parent = get(
+        "SELECT m.* FROM messages m JOIN users u ON u.id=m.user_id WHERE m.id=? AND m.project_id=? AND u.suspended=0",
+        string(parentId, "Parent message", 36, 36),
+        p.id,
+      );
+      if (!parent) fail(404, "Reply target not found.", "NOT_FOUND");
+      if (parent.parent_id)
+        fail(
+          400,
+          "Reply to the original message to keep this conversation together.",
+        );
+    }
+    atomic(() => {
+      run(
+        "INSERT INTO messages(id,project_id,user_id,text,created_at,updated_at,parent_id) VALUES(?,?,?,?,?,?,?)",
+        id,
+        p.id,
+        req.user.id,
+        text,
+        date,
+        date,
+        parentId,
+      );
+      recordActivity(
+        p.id,
+        req.user.id,
+        parentId ? "reply_posted" : "message_posted",
+        id,
+      );
+    });
     res
       .status(201)
       .json({ message: message(get("SELECT * FROM messages WHERE id=?", id)) });
@@ -711,8 +856,8 @@ export function createApp(options = {}) {
     });
   });
   app.post("/api/reports", requireUser, (req, res) => {
-    const { projectId, messageId } = req.body;
-    if (!!projectId === !!messageId)
+    const { projectId, messageId, updateId } = req.body;
+    if ([projectId, messageId, updateId].filter(Boolean).length !== 1)
       fail(400, "Choose exactly one report target.");
     const reason = string(req.body.reason, "Reason", 2000, 1);
     if (projectId) visible(string(projectId, "Project", 100, 1));
@@ -724,14 +869,23 @@ export function createApp(options = {}) {
       if (!m) fail(404, "Message not found.", "NOT_FOUND");
       visible(m.project_id);
     }
+    if (updateId) {
+      const up = get(
+        "SELECT up.* FROM project_updates up JOIN users u ON u.id=up.user_id WHERE up.id=? AND u.suspended=0",
+        string(updateId, "Update", 100, 1),
+      );
+      if (!up) fail(404, "Update not found.", "NOT_FOUND");
+      visible(up.project_id);
+    }
     run(
-      "INSERT INTO reports(id,project_id,message_id,user_id,reason,created_at) VALUES(?,?,?,?,?,?)",
+      "INSERT INTO reports(id,project_id,message_id,user_id,reason,created_at,update_id) VALUES(?,?,?,?,?,?,?)",
       randomUUID(),
       projectId ?? null,
       messageId ?? null,
       req.user.id,
       reason,
       now(),
+      updateId ?? null,
     );
     res.status(201).json({ ok: true });
   });
@@ -743,14 +897,35 @@ export function createApp(options = {}) {
           const reportedMessage = r.message_id
             ? get("SELECT * FROM messages WHERE id=?", r.message_id)
             : null;
+          const reportedUpdate = r.update_id
+            ? get("SELECT * FROM project_updates WHERE id=?", r.update_id)
+            : null;
           const reportedProject = get(
             "SELECT * FROM projects WHERE id=?",
-            r.project_id ?? reportedMessage?.project_id ?? "",
+            r.project_id ??
+              reportedMessage?.project_id ??
+              reportedUpdate?.project_id ??
+              "",
           );
           return {
             id: r.id,
             projectId: r.project_id ?? undefined,
             messageId: r.message_id ?? undefined,
+            updateId: r.update_id ?? undefined,
+            update: reportedUpdate
+              ? {
+                  id: reportedUpdate.id,
+                  title: reportedUpdate.title,
+                  body: reportedUpdate.body,
+                  author: publicUser(
+                    get(
+                      "SELECT * FROM users WHERE id=?",
+                      reportedUpdate.user_id,
+                    ),
+                  ),
+                  projectId: reportedUpdate.project_id,
+                }
+              : null,
             reason: r.reason,
             createdAt: r.created_at,
             resolved: !!r.resolved,
@@ -823,10 +998,12 @@ export function createApp(options = {}) {
       },
     });
   });
+  app.get("/api/admin/email", (req, res) => res.json(mail.status()));
   app.get("/api/admin/users", (req, res) =>
     res.json({
       users: all("SELECT * FROM users ORDER BY created_at DESC").map((u) => ({
-        ...privateUser(u),
+        ...publicUser(u),
+        role: u.role,
         suspended: !!u.suspended,
       })),
     }),
@@ -845,7 +1022,11 @@ export function createApp(options = {}) {
       fail(409, "Cannot suspend yourself or the last administrator.");
     atomic(() => {
       run("UPDATE users SET suspended=? WHERE id=?", +suspended, u.id);
-      if (suspended) run("DELETE FROM sessions WHERE user_id=?", u.id);
+      if (suspended) {
+        run("DELETE FROM sessions WHERE user_id=?", u.id);
+        run("DELETE FROM auth_tokens WHERE user_id=?", u.id);
+        run("DELETE FROM repository_claims WHERE user_id=?", u.id);
+      }
     });
     res.json({ ok: true });
   });
@@ -858,7 +1039,7 @@ export function createApp(options = {}) {
       express.static(dist, { index: false, maxAge: production ? "1h" : 0 }),
     );
     app.get("/{*path}", (req, res) =>
-      res.sendFile(resolve(dist, "index.html")),
+      res.sendFile(resolve(dist, "index.html"), { dotfiles: "allow" }),
     );
   }
   app.use((error, req, res, next) => {

@@ -18,7 +18,19 @@ const input = {
   art: "canvas",
 };
 async function harness(t, options = {}) {
+  const proofFiles = new Map();
   const app = createApp({
+    repositoryFetch: async (url) => {
+      const proof = proofFiles.get(url.split("/").at(-1));
+      return proof === undefined
+        ? new Response("Missing", { status: 404 })
+        : Response.json({
+            type: "file",
+            encoding: "base64",
+            size: Buffer.byteLength(proof),
+            content: Buffer.from(proof).toString("base64"),
+          });
+    },
     dbPath: ":memory:",
     quiet: true,
     rateLimit: 1000,
@@ -53,6 +65,23 @@ async function harness(t, options = {}) {
       if (data.csrfToken) this.csrf = data.csrfToken;
       return { status: response.status, data, response };
     },
+    async createOwnedProject(body) {
+      const created = await this.call("/projects", "POST", body);
+      assert.equal(created.status, 201, JSON.stringify(created.data));
+      const id = created.data.project.id;
+      const challenge = await this.call(`/projects/${id}/claim`, "POST");
+      assert.equal(challenge.status, 201);
+      proofFiles.set(
+        challenge.data.path.split("/").at(-1),
+        challenge.data.proof,
+      );
+      const claimed = await this.call(`/projects/${id}/claim/verify`, "POST", {
+        claimId: challenge.data.claimId,
+      });
+      assert.equal(claimed.status, 200, JSON.stringify(claimed.data));
+      created.data.project = (await this.call(`/projects/${id}`)).data.project;
+      return created;
+    },
     async register(username) {
       const r = await this.call("/auth/register", "POST", {
         username,
@@ -80,7 +109,7 @@ test("shared project collaboration, ownership, public profiles and validation", 
     csrfToken: null,
   });
   assert.equal((await anon.call("/projects", "POST", input)).status, 401);
-  const created = await a.call("/projects", "POST", input);
+  const created = await a.createOwnedProject(input);
   assert.equal(created.status, 201);
   const id = created.data.project.id;
   assert.equal(created.data.project.author, "owner");
@@ -304,7 +333,7 @@ test("moderation conceals content on every public route and invalidates suspende
   app.locals.db
     .prepare("UPDATE users SET role='admin' WHERE id=?")
     .run(admin.user.id);
-  const id = (await a.call("/projects", "POST", input)).data.project.id;
+  const id = (await a.createOwnedProject(input)).data.project.id;
   const msg = (
     await b.call(`/projects/${id}/messages`, "POST", { text: "Message" })
   ).data.message;
@@ -379,7 +408,7 @@ test("account deletion cascades personal and owned content without dangling refe
     b = client();
   await a.register("owner");
   await b.register("member");
-  const id = (await a.call("/projects", "POST", input)).data.project.id;
+  const id = (await a.createOwnedProject(input)).data.project.id;
   await b.call(`/projects/${id}/join`, "PUT", { joined: true });
   await b.call(`/projects/${id}/save`, "PUT", { saved: true });
   await b.call(`/projects/${id}/messages`, "POST", {
@@ -521,7 +550,7 @@ test("admin reports retain hidden and suspended context and permit message remov
   app.locals.db
     .prepare("UPDATE users SET role='admin' WHERE id=?")
     .run(admin.user.id);
-  const project = (await owner.call("/projects", "POST", input)).data.project;
+  const project = (await owner.createOwnedProject(input)).data.project;
   const message = (
     await owner.call(`/projects/${project.id}/messages`, "POST", {
       text: "Reported discussion context",
@@ -579,11 +608,13 @@ test("public site metadata exposes only configured operator and safe contact", a
   assert.deepEqual((await client().call("/site")).data, {
     operatorName: "Community Operator",
     contactEmail: "contact@example.com",
+    emailEnabled: false,
   });
   const local = await harness(t, { operatorName: "", contactEmail: "" });
   assert.deepEqual((await local.client().call("/site")).data, {
     operatorName: "",
     contactEmail: "",
+    emailEnabled: false,
   });
   const production = {
     dbPath: ":memory:",
@@ -812,4 +843,647 @@ test("whitespace-only new passwords cannot change accounts or revoke valid sessi
     password: "  next-meaningful-password  ",
   });
   assert.equal(recovered.status, 200);
+});
+
+test("private verified email enables single-use password recovery and revokes sessions and old keys", async (t) => {
+  const sent = [];
+  const { app, client } = await harness(t, {
+    email: {
+      apiKey: "test-key",
+      sender: "noreply@subcult.tv",
+      fetch: async (url, options) => {
+        assert.equal(url, "https://api.brevo.com/v3/smtp/email");
+        sent.push(JSON.parse(options.body));
+        return Response.json({ messageId: "<test-message>" }, { status: 201 });
+      },
+    },
+  });
+  const owner = client(),
+    anon = client();
+  await owner.register("email-owner");
+  const oldRecovery = owner.recovery;
+  assert.equal(
+    (
+      await owner.call("/me/email", "PUT", {
+        email: "owner@example.com",
+        password: "wrong",
+      })
+    ).status,
+    401,
+  );
+  const saved = await owner.call("/me/email", "PUT", {
+    email: "Owner@example.com",
+    password: pw,
+  });
+  assert.equal(saved.data.user.email, null);
+  assert.equal(saved.data.user.pendingEmail, "owner@example.com");
+  const queue = app.locals.db.prepare("SELECT * FROM mail_outbox").get();
+  const token = queue.body.match(/#token=([^\s]+)/)[1];
+  assert.notEqual(queue.token, token);
+  assert.equal((await owner.call("/me/email/resend", "POST")).status, 429);
+  for (const path of [
+    "/builders",
+    "/builders/email-owner",
+    "/activity",
+    "/site",
+  ])
+    assert.ok(
+      !JSON.stringify((await anon.call(path)).data).includes(
+        "owner@example.com",
+      ),
+    );
+  await app.locals.mail.process();
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].textContent.includes(token), true);
+  assert.equal(sent[0].htmlContent, undefined);
+  assert.equal(
+    app.locals.db.prepare("SELECT body FROM mail_outbox").get().body,
+    "",
+  );
+  assert.equal(
+    (await anon.call("/auth/verify-email", "POST", { token })).status,
+    200,
+  );
+  assert.equal(
+    (await anon.call("/auth/verify-email", "POST", { token })).status,
+    400,
+  );
+  assert.equal(
+    (await owner.call("/auth/session")).data.user.email,
+    "owner@example.com",
+  );
+  const unknown = await anon.call("/auth/request-reset", "POST", {
+    email: "missing@example.com",
+  });
+  const known = await anon.call("/auth/request-reset", "POST", {
+    email: "owner@example.com",
+  });
+  assert.deepEqual(known.data, unknown.data);
+  assert.equal(known.status, unknown.status);
+  const reset = app.locals.db
+    .prepare("SELECT * FROM mail_outbox")
+    .get()
+    .body.match(/#token=([^\s]+)/)[1];
+  const newPw = "a-brand-new-password-456";
+  const result = await anon.call("/auth/reset-password", "POST", {
+    token: reset,
+    password: newPw,
+  });
+  assert.equal(result.status, 200);
+  assert.ok(result.data.recoveryCode);
+  assert.equal(
+    (await owner.call("/me", "PATCH", { bio: "expired" })).status,
+    401,
+  );
+  assert.equal(
+    (
+      await anon.call("/auth/reset-password", "POST", {
+        token: reset,
+        password: newPw,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await anon.call("/auth/recover", "POST", {
+        username: "email-owner",
+        recoveryCode: oldRecovery,
+        password: pw,
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await anon.call("/auth/login", "POST", {
+        username: "email-owner",
+        password: newPw,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM auth_tokens").get().n,
+    0,
+  );
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM mail_outbox").get().n,
+    0,
+  );
+});
+
+test("email expiry, replacement, removal, provider retries and disabled configuration", async (t) => {
+  let failProvider = true;
+  const { app, client } = await harness(t, {
+    email: {
+      apiKey: "test-key",
+      sender: "noreply@subcult.tv",
+      fetch: async () =>
+        failProvider
+          ? Response.json({ error: "not stored" }, { status: 429 })
+          : Response.json({ messageId: "<accepted>" }, { status: 201 }),
+    },
+  });
+  const a = client(),
+    anon = client();
+  await a.register("email-retry");
+  await a.call("/me/email", "PUT", {
+    email: "first@example.com",
+    password: pw,
+  });
+  const firstToken = app.locals.db
+    .prepare("SELECT body FROM mail_outbox")
+    .get()
+    .body.match(/#token=([^\s]+)/)[1];
+  await app.locals.mail.process();
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT status,last_error,attempts FROM mail_outbox")
+      .get().last_error,
+    "HTTP_429",
+  );
+  app.locals.db.prepare("UPDATE mail_outbox SET next_attempt=0").run();
+  failProvider = false;
+  await app.locals.mail.process();
+  assert.equal(app.locals.mail.status().counts.sent, 1);
+  app.locals.db.prepare("UPDATE auth_tokens SET expires=0,created_at=0").run();
+  assert.equal(
+    (await anon.call("/auth/verify-email", "POST", { token: firstToken }))
+      .status,
+    400,
+  );
+  await a.call("/me/email", "PUT", {
+    email: "second@example.com",
+    password: pw,
+  });
+  assert.equal(
+    (await anon.call("/auth/verify-email", "POST", { token: firstToken }))
+      .status,
+    400,
+  );
+  const secondToken = app.locals.db
+    .prepare("SELECT body FROM mail_outbox")
+    .get()
+    .body.match(/#token=([^\s]+)/)[1];
+  await anon.call("/auth/verify-email", "POST", { token: secondToken });
+  await anon.call("/auth/request-reset", "POST", {
+    email: "second@example.com",
+  });
+  await a.call("/me/email", "PUT", { email: "", password: pw });
+  assert.equal((await a.call("/auth/session")).data.user.email, null);
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM auth_tokens").get().n,
+    0,
+  );
+  const disabled = await harness(t, { email: { apiKey: "", sender: "" } });
+  assert.equal(
+    (
+      await disabled
+        .client()
+        .call("/auth/request-reset", "POST", { email: "anything@example.com" })
+    ).status,
+    503,
+  );
+});
+
+test("project updates, threaded replies and activity honor permissions, pagination and moderation", async (t) => {
+  const { app, client } = await harness(t);
+  const owner = client(),
+    member = client(),
+    visitor = client(),
+    admin = client(),
+    anon = client();
+  await owner.register("community-owner");
+  await member.register("community-member");
+  await visitor.register("community-visitor");
+  await admin.register("community-admin");
+  app.locals.db
+    .prepare("UPDATE users SET role='admin' WHERE id=?")
+    .run(admin.user.id);
+  const p = (await owner.createOwnedProject(input)).data.project;
+  assert.equal(
+    (
+      await visitor.call(`/projects/${p.id}/updates`, "POST", {
+        title: "Spam",
+        body: "No permission",
+      })
+    ).status,
+    403,
+  );
+  await member.call(`/projects/${p.id}/join`, "PUT", { joined: true });
+  await member.call(`/projects/${p.id}/join`, "PUT", { joined: true });
+  const update = (
+    await member.call(`/projects/${p.id}/updates`, "POST", {
+      title: "Working prototype",
+      body: "The first part is running.",
+    })
+  ).data.update;
+  const root = (
+    await owner.call(`/projects/${p.id}/messages`, "POST", {
+      text: "A question",
+    })
+  ).data.message;
+  const reply = (
+    await member.call(`/projects/${p.id}/messages`, "POST", {
+      text: "An answer",
+      parentId: root.id,
+    })
+  ).data.message;
+  assert.equal(reply.parentId, root.id);
+  assert.equal(
+    (
+      await member.call(`/projects/${p.id}/messages`, "POST", {
+        text: "Nested",
+        parentId: reply.id,
+      })
+    ).status,
+    400,
+  );
+  const other = (
+    await visitor.createOwnedProject({
+      ...input,
+      repo: "https://github.com/example/other",
+    })
+  ).data.project;
+  assert.equal(
+    (
+      await visitor.call(`/projects/${other.id}/messages`, "POST", {
+        text: "Wrong project",
+        parentId: root.id,
+      })
+    ).status,
+    404,
+  );
+  await member.call(`/projects/${p.id}/save`, "PUT", { saved: true });
+  await owner.call(`/projects/${p.id}`, "PATCH", { name: p.name });
+  const full = (await anon.call("/activity?limit=50")).data.activity;
+  assert.equal(full.filter((a) => a.kind === "member_joined").length, 1);
+  assert.equal(full.filter((a) => a.kind === "project_changed").length, 0);
+  assert.equal(full.length, 8);
+  assert.equal((await anon.call("/activity?scope=mine")).status, 401);
+  assert.equal((await anon.call("/activity?limit=0")).status, 400);
+  const page1 = (await anon.call("/activity?limit=2")).data;
+  const page2 = (
+    await anon.call(`/activity?limit=2&before=${page1.nextCursor}`)
+  ).data;
+  assert.equal(
+    new Set([...page1.activity, ...page2.activity].map((a) => a.id)).size,
+    4,
+  );
+  assert.ok(
+    (await member.call("/activity?scope=mine")).data.activity.every(
+      (a) => a.project.id === p.id,
+    ),
+  );
+  assert.equal(
+    (await visitor.call(`/updates/${update.id}`, "DELETE")).status,
+    403,
+  );
+  await visitor.call("/reports", "POST", {
+    updateId: update.id,
+    reason: "Check this update",
+  });
+  const report = (await admin.call("/admin/reports")).data.reports[0];
+  assert.equal(report.update.title, "Working prototype");
+  await admin.call(`/admin/projects/${p.id}`, "PATCH", { hidden: true });
+  assert.ok(
+    (await anon.call("/activity")).data.activity.every(
+      (a) => a.project.id !== p.id,
+    ),
+  );
+  assert.equal((await anon.call(`/projects/${p.id}/updates`)).status, 404);
+  await admin.call(`/admin/projects/${p.id}`, "PATCH", { hidden: false });
+  await admin.call(`/admin/users/${member.user.id}`, "PATCH", {
+    suspended: true,
+  });
+  assert.ok(
+    (await anon.call("/activity")).data.activity.every(
+      (a) => a.actor.id !== member.user.id,
+    ),
+  );
+  assert.equal(
+    (await anon.call(`/projects/${p.id}/updates`)).data.updates.length,
+    0,
+  );
+  await admin.call(`/admin/users/${member.user.id}`, "PATCH", {
+    suspended: false,
+  });
+  await owner.call(`/messages/${root.id}`, "DELETE");
+  assert.equal(
+    (await anon.call(`/projects/${p.id}/messages`)).data.messages.length,
+    0,
+  );
+  assert.ok(
+    (await anon.call("/activity")).data.activity.every((a) => !a.messageId),
+  );
+  await admin.call(`/updates/${update.id}`, "DELETE");
+  assert.equal(
+    (await anon.call(`/projects/${p.id}/updates`)).data.updates.length,
+    0,
+  );
+  assert.deepEqual(app.locals.db.prepare("PRAGMA foreign_key_check").all(), []);
+});
+
+test("unclaimed repositories reject duplicates and require account-bound repository proof to transfer", async (t) => {
+  let proof = "wrong";
+  const { app, client } = await harness(t, {
+    repositoryFetch: async (url, options) => {
+      assert.ok(
+        url.startsWith(
+          "https://api.github.com/repos/StoryTold/photocraft/contents/.commons/claims/",
+        ),
+      );
+      assert.equal(options.redirect, "error");
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        size: Buffer.byteLength(proof),
+        content: Buffer.from(proof).toString("base64"),
+      });
+    },
+  });
+  const submitter = client(),
+    maintainer = client(),
+    attacker = client(),
+    anon = client();
+  await submitter.register("reference-lister");
+  await maintainer.register("repository-maintainer");
+  await attacker.register("claim-attacker");
+  const created = await submitter.call("/projects", "POST", {
+    ...input,
+    repo: "https://github.com/StoryTold/photocraft.git/",
+    listingType: "reference",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(
+    (
+      await attacker.call("/projects", "POST", {
+        ...input,
+        listingType: "owned",
+      })
+    ).status,
+    400,
+  );
+  const p = created.data.project;
+  assert.equal(p.ownerId, null);
+  assert.equal(p.external, true);
+  assert.equal(p.claimable, true);
+  assert.equal(p.author, "StoryTold");
+  assert.equal(
+    (await submitter.call(`/projects/${p.id}`, "PATCH", { name: "Hijacked" }))
+      .status,
+    403,
+  );
+  assert.equal(
+    (await submitter.call(`/projects/${p.id}/join`, "PUT", { joined: true }))
+      .status,
+    409,
+  );
+  assert.equal(
+    (
+      await submitter.call(`/projects/${p.id}/updates`, "POST", {
+        title: "Fake owner",
+        body: "No",
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (
+      await attacker.call("/projects", "POST", {
+        ...input,
+        repo: "https://github.com/storytold/PHOTOCRAFT",
+      })
+    ).status,
+    409,
+  );
+  assert.equal(
+    (await anon.call(`/projects/${p.id}/claim`, "POST")).status,
+    401,
+  );
+  const challenge = (await maintainer.call(`/projects/${p.id}/claim`, "POST"))
+    .data;
+  assert.ok(challenge.path.startsWith(".commons/claims/"));
+  assert.equal(
+    (
+      await attacker.call(`/projects/${p.id}/claim/verify`, "POST", {
+        claimId: challenge.claimId,
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await maintainer.call(`/projects/${p.id}/claim/verify`, "POST", {
+        claimId: challenge.claimId,
+      })
+    ).status,
+    409,
+  );
+  await submitter.call(`/projects/${p.id}/save`, "PUT", { saved: true });
+  proof = challenge.proof;
+  const claim = await maintainer.call(
+    `/projects/${p.id}/claim/verify`,
+    "POST",
+    { claimId: challenge.claimId },
+  );
+  assert.equal(claim.status, 200);
+  const claimed = (await anon.call(`/projects/${p.id}`)).data.project;
+  assert.equal(claimed.repositoryVerified, true);
+  assert.equal(
+    (
+      await maintainer.call(`/projects/${p.id}`, "PATCH", {
+        repo: "https://github.com/example/stolen",
+      })
+    ).status,
+    409,
+  );
+  assert.equal(claimed.ownerId, maintainer.user.id);
+  assert.equal(claimed.external, false);
+  assert.equal(claimed.stars, 1);
+  assert.equal(
+    (
+      await maintainer.call(`/projects/${p.id}`, "PATCH", {
+        description: "Now maintained here",
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (await attacker.call(`/projects/${p.id}/claim`, "POST")).status,
+    409,
+  );
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM repository_claims").get().n,
+    0,
+  );
+  assert.equal(
+    (await anon.call("/activity")).data.activity.filter(
+      (a) => a.kind === "project_claimed",
+    ).length,
+    1,
+  );
+  assert.deepEqual(app.locals.db.prepare("PRAGMA foreign_key_check").all(), []);
+});
+
+test("competing repository claims transfer once, and expiry or account suspension invalidates proof", async (t) => {
+  const files = new Map();
+  let release;
+  let count = 0;
+  const barrier = new Promise((resolve) => {
+    release = resolve;
+  });
+  const { app, client } = await harness(t, {
+    repositoryFetch: async (url) => {
+      const id = url.split("/").at(-1);
+      const content = files.get(id);
+      count++;
+      if (count === 2) release();
+      await barrier;
+      return Response.json({
+        type: "file",
+        encoding: "base64",
+        size: Buffer.byteLength(content),
+        content: Buffer.from(content).toString("base64"),
+      });
+    },
+  });
+  const a = client(),
+    b = client(),
+    lister = client();
+  await a.register("claim-one");
+  await b.register("claim-two");
+  await lister.register("claim-lister");
+  const p = (await lister.call("/projects", "POST", input)).data.project;
+  const challengeA = (await a.call(`/projects/${p.id}/claim`, "POST")).data;
+  const challengeB = (await b.call(`/projects/${p.id}/claim`, "POST")).data;
+  files.set(`${challengeA.claimId}.txt`, challengeA.proof);
+  files.set(`${challengeB.claimId}.txt`, challengeB.proof);
+  const results = await Promise.all([
+    a.call(`/projects/${p.id}/claim/verify`, "POST", {
+      claimId: challengeA.claimId,
+    }),
+    b.call(`/projects/${p.id}/claim/verify`, "POST", {
+      claimId: challengeB.claimId,
+    }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 409]);
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT COUNT(*) n FROM activity WHERE kind='project_claimed'")
+      .get().n,
+    1,
+  );
+  const other = (
+    await lister.call("/projects", "POST", {
+      ...input,
+      repo: "https://github.com/example/expired",
+    })
+  ).data.project;
+  const expired = (await a.call(`/projects/${other.id}/claim`, "POST")).data;
+  app.locals.db
+    .prepare("UPDATE repository_claims SET expires=0 WHERE id=?")
+    .run(expired.claimId);
+  assert.equal(
+    (
+      await a.call(`/projects/${other.id}/claim/verify`, "POST", {
+        claimId: expired.claimId,
+      })
+    ).status,
+    400,
+  );
+  const suspendedChallenge = (
+    await b.call(`/projects/${other.id}/claim`, "POST")
+  ).data;
+  app.locals.db
+    .prepare("UPDATE users SET role='admin' WHERE id=?")
+    .run(lister.user.id);
+  assert.equal(
+    (
+      await lister.call(`/admin/users/${b.user.id}`, "PATCH", {
+        suspended: true,
+      })
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await b.call(`/projects/${other.id}/claim/verify`, "POST", {
+        claimId: suspendedChallenge.claimId,
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT COUNT(*) n FROM repository_claims WHERE user_id=?")
+      .get(b.user.id).n,
+    0,
+  );
+});
+
+test("mail queue survives restart, suppresses concurrent processing and scrubs permanent errors", async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "commons-mail-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = join(dir, "commons.sqlite");
+  let attempts = 0;
+  const config = {
+    apiKey: "test-key",
+    sender: "noreply@subcult.tv",
+    fetch: async () => {
+      attempts++;
+      return Response.json(
+        { message: "recipient and secret must not be stored" },
+        { status: 401 },
+      );
+    },
+  };
+  const first = createApp({ dbPath: path, email: config, quiet: true });
+  const db = first.locals.db;
+  db.prepare(
+    "INSERT INTO users(id,username,display_name,password,recovery,created_at) VALUES(?,?,?,?,?,?)",
+  ).run(
+    "mail-user",
+    "mail-user",
+    "Mail user",
+    "hash",
+    "hash",
+    new Date().toISOString(),
+  );
+  db.prepare("INSERT INTO auth_tokens VALUES(?,?,?,?,?,?)").run(
+    "link-hash",
+    "mail-user",
+    "verify",
+    "private@example.com",
+    Date.now(),
+    Date.now() + 86400_000,
+  );
+  first.locals.mail.enqueue(
+    "link-hash",
+    "private@example.com",
+    "Verify",
+    "private-link-token",
+  );
+  first.locals.close();
+  const second = createApp({ dbPath: path, email: config, quiet: true });
+  t.after(() => second.locals.close());
+  await Promise.all([
+    second.locals.mail.process(),
+    second.locals.mail.process(),
+  ]);
+  assert.equal(attempts, 1);
+  const row = second.locals.db.prepare("SELECT * FROM mail_outbox").get();
+  assert.equal(row.status, "failed");
+  assert.equal(row.last_error, "HTTP_401");
+  assert.equal(row.body, "");
+  assert.equal(row.recipient, "");
+  await second.locals.mail.process();
+  assert.equal(attempts, 1);
+  second.locals.db.prepare("UPDATE auth_tokens SET expires=0").run();
+  await second.locals.mail.process();
+  assert.equal(
+    second.locals.db.prepare("SELECT COUNT(*) n FROM mail_outbox").get().n,
+    0,
+  );
 });
