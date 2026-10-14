@@ -1,11 +1,49 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "./app.js";
+import { catalog, importCatalog, products } from "./catalog.js";
+import { openDatabase } from "./db.js";
 
 const pw = "a-long-test-password-123";
+
+test("production deep links serve the SPA beneath a hidden checkout without exposing dotfiles", async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "commons-serving-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const dist = join(directory, ".worktree", "dist");
+  mkdirSync(dist, { recursive: true });
+  writeFileSync(
+    join(dist, "index.html"),
+    "<!doctype html><title>Commons route test</title>",
+  );
+  writeFileSync(join(dist, ".private"), "must never be served");
+  const { base } = await harness(t, {
+    distPath: dist,
+    production: true,
+    publicUrl: "https://commons.example",
+    operatorName: "Test operator",
+    contactEmail: "test@example.com",
+  });
+  for (const path of [
+    "/",
+    "/alternatives",
+    "/alternatives/photoshop",
+    "/build",
+    "/projects/catalog-photocraft",
+    "/guides/build-an-alternative",
+    "/start/after-effects",
+  ]) {
+    const response = await fetch(base.replace(/\/api$/, "") + path);
+    assert.equal(response.status, 200, path);
+    assert.match(response.headers.get("content-type"), /text\/html/);
+    assert.match(await response.text(), /Commons route test/);
+  }
+  const hidden = await fetch(base.replace(/\/api$/, "") + "/.private");
+  assert.ok(!(await hidden.text()).includes("must never be served"));
+  assert.equal((await fetch(base + "/missing")).status, 404);
+});
 const input = {
   name: "Open canvas",
   description: "Rebuild an open creative canvas.",
@@ -69,6 +107,11 @@ async function harness(t, options = {}) {
       const created = await this.call("/projects", "POST", body);
       assert.equal(created.status, 201, JSON.stringify(created.data));
       const id = created.data.project.id;
+      await this.claimProject(id);
+      created.data.project = (await this.call(`/projects/${id}`)).data.project;
+      return created;
+    },
+    async claimProject(id) {
       const challenge = await this.call(`/projects/${id}/claim`, "POST");
       assert.equal(challenge.status, 201);
       proofFiles.set(
@@ -79,8 +122,7 @@ async function harness(t, options = {}) {
         claimId: challenge.data.claimId,
       });
       assert.equal(claimed.status, 200, JSON.stringify(claimed.data));
-      created.data.project = (await this.call(`/projects/${id}`)).data.project;
-      return created;
+      return claimed;
     },
     async register(username) {
       const r = await this.call("/auth/register", "POST", {
@@ -96,6 +138,364 @@ async function harness(t, options = {}) {
   });
   return { app, client, base };
 }
+
+test("reviewed catalog imports once, exposes comparisons and preserves moderation across restarts", async (t) => {
+  const { app, client } = await harness(t, { seedCatalog: true });
+  const anon = client();
+  const listings = (await anon.call("/projects")).data.projects;
+  assert.equal(listings.length, 15);
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM users").get().n,
+    0,
+  );
+  assert.ok(
+    listings.every(
+      (p) =>
+        p.external &&
+        !p.ownerId &&
+        p.stars === 0 &&
+        p.contributors === 0 &&
+        p.catalog,
+    ),
+  );
+  assert.equal(importCatalog(app.locals.db), 0);
+  const index = (await anon.call("/catalog")).data;
+  assert.equal(index.products.find((p) => p.slug === "photoshop").count, 2);
+  assert.equal(index.directories.length, 5);
+  const photo = listings.find((p) => p.name === "PhotoCraft");
+  assert.equal(photo.catalog.maturity, "Alpha");
+  assert.equal(photo.catalog.comparisons[0].coverage, "Experimental rebuild");
+  assert.match(photo.catalog.comparisons[0].gaps, /not ready/);
+  const member = client();
+  await member.register("catalog-reader");
+  assert.equal(
+    (await member.call(`/projects/${photo.id}/join`, "PUT", { joined: true }))
+      .status,
+    409,
+  );
+  await member.call(`/projects/${photo.id}/save`, "PUT", { saved: true });
+  await member.call(`/projects/${photo.id}/messages`, "POST", {
+    text: "Testing a layered photo workflow.",
+  });
+  assert.equal(importCatalog(app.locals.db), 0);
+  assert.equal(
+    (await member.call(`/projects/${photo.id}`)).data.project.saved,
+    true,
+  );
+  assert.equal(
+    (await anon.call(`/projects/${photo.id}/messages`)).data.messages.length,
+    1,
+  );
+  app.locals.db
+    .prepare("UPDATE users SET role='admin' WHERE username=?")
+    .run("catalog-reader");
+  assert.equal(
+    (
+      await member.call(`/projects/${photo.id}`, "PATCH", {
+        description: "Unsupported parity claim",
+      })
+    ).status,
+    409,
+  );
+  app.locals.db
+    .prepare("UPDATE projects SET hidden=1 WHERE id=?")
+    .run(photo.id);
+  importCatalog(app.locals.db);
+  assert.equal((await anon.call(`/projects/${photo.id}`)).status, 404);
+  assert.equal(
+    (await anon.call("/catalog")).data.products.find(
+      (p) => p.slug === "photoshop",
+    ).count,
+    1,
+  );
+  const graphite = listings.find((p) => p.name === "Graphite");
+  await member.call(`/projects/${graphite.id}`, "DELETE");
+  importCatalog(app.locals.db);
+  assert.equal((await anon.call(`/projects/${graphite.id}`)).status, 404);
+  assert.equal(
+    (await anon.call("/catalog")).data.products.find(
+      (p) => p.slug === "illustrator",
+    ).count,
+    0,
+  );
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT project_id FROM catalog_entries WHERE slug='graphite'")
+      .get().project_id,
+    null,
+  );
+  assert.equal(
+    app.locals.db.prepare("PRAGMA foreign_key_check").all().length,
+    0,
+  );
+});
+
+test("catalog reuses legacy references, validates sources and rolls back partial imports", async (t) => {
+  const { app } = await harness(t);
+  const db = app.locals.db;
+  const p = catalog.find((p) => p.slug === "photocraft");
+  db.prepare(
+    "INSERT INTO projects(id,author,name,description,repo,category,tags,status,art,letter,external,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+  ).run(
+    "legacy-photo",
+    "storytold",
+    "PhotoCraft",
+    "Existing reference",
+    p.repo,
+    p.category,
+    "[]",
+    "In progress",
+    "photo",
+    "P",
+    1,
+    "2026-10-13",
+    "2026-10-13",
+  );
+  assert.equal(importCatalog(db), 15);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) n FROM projects WHERE repo=?").get(p.repo).n,
+    1,
+  );
+  assert.equal(
+    db
+      .prepare("SELECT project_id FROM catalog_entries WHERE slug='photocraft'")
+      .get().project_id,
+    "legacy-photo",
+  );
+  assert.equal(
+    db.prepare("SELECT description FROM projects WHERE id='legacy-photo'").get()
+      .description,
+    "Existing reference",
+  );
+  const productIds = new Set(products.map((p) => p.slug));
+  for (const item of catalog) {
+    assert.ok(
+      item.metadata.comparisons.every((c) => productIds.has(c.product)),
+    );
+    for (const link of [
+      item.repo,
+      item.metadata.website,
+      item.metadata.licenseUrl,
+      item.metadata.activity.url,
+      item.metadata.contribute,
+      item.metadata.adoption,
+      ...item.metadata.comparisons.map((c) => c.source),
+    ])
+      assert.equal(new URL(link).protocol, "https:");
+  }
+  const fresh = {
+    ...p,
+    slug: "new-entry",
+    repo: "https://github.com/example/new",
+  };
+  const invalid = {
+    ...p,
+    slug: "broken-entry",
+    repo: "https://github.com/example/broken",
+    description: null,
+  };
+  assert.throws(() => importCatalog(db, [fresh, invalid]));
+  assert.equal(
+    db.prepare("SELECT id FROM projects WHERE id='catalog-new-entry'").get(),
+    undefined,
+  );
+  assert.equal(
+    db.prepare("SELECT slug FROM catalog_entries WHERE slug='new-entry'").get(),
+    undefined,
+  );
+});
+
+test("curated repositories retain canonical identity through claims, imports and moderation", async (t) => {
+  const { app, client } = await harness(t, { seedCatalog: true });
+  const owner = client(),
+    admin = client(),
+    anon = client();
+  await owner.register("curated-maintainer");
+  await admin.register("curated-moderator");
+  app.locals.db
+    .prepare("UPDATE users SET role='admin' WHERE id=?")
+    .run(admin.user.id);
+  const photo = (await anon.call("/projects")).data.projects.find(
+    (p) => p.name === "PhotoCraft",
+  );
+  assert.equal(
+    (
+      await owner.call("/projects", "POST", {
+        ...input,
+        repo: "https://github.com/StoryTold/PhotoCraft.git",
+      })
+    ).status,
+    409,
+  );
+  await owner.claimProject(photo.id);
+  const index = async () =>
+    (await anon.call("/catalog")).data.products.find(
+      (p) => p.slug === "photoshop",
+    );
+  assert.equal((await index()).commonsCount, 1);
+  assert.equal(
+    (
+      await owner.call(`/projects/${photo.id}`, "PATCH", {
+        name: "Claimed PhotoCraft",
+        replaces: ["photoshop"],
+      })
+    ).status,
+    200,
+  );
+  assert.equal((await index()).commonsCount, 1);
+  importCatalog(app.locals.db);
+  assert.equal(
+    (await anon.call(`/projects/${photo.id}`)).data.project.name,
+    "Claimed PhotoCraft",
+  );
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT COUNT(*) n FROM projects WHERE repo_key=?")
+      .get("https://github.com/storytold/photocraft").n,
+    1,
+  );
+  await admin.call(`/admin/users/${owner.user.id}`, "PATCH", {
+    suspended: true,
+  });
+  assert.equal((await index()).commonsCount, 0);
+  assert.equal((await index()).count, 1);
+});
+
+test("catalog review updates and removal decisions survive closing and reopening the database", (t) => {
+  const directory = mkdtempSync(join(tmpdir(), "commons-catalog-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const path = join(directory, "catalog.sqlite");
+  let db = openDatabase(path);
+  importCatalog(db);
+  db.prepare(
+    "UPDATE projects SET hidden=1 WHERE id='catalog-photocraft'",
+  ).run();
+  db.prepare("DELETE FROM projects WHERE id='catalog-graphite'").run();
+  db.close();
+  db = openDatabase(path);
+  try {
+    const penpot = catalog.find((p) => p.slug === "penpot");
+    const reviewed = {
+      ...penpot,
+      metadata: { ...penpot.metadata, reviewedAt: "2026-10-15" },
+    };
+    assert.equal(
+      importCatalog(
+        db,
+        catalog.map((p) => (p.slug === "penpot" ? reviewed : p)),
+      ),
+      0,
+    );
+    assert.equal(
+      db
+        .prepare("SELECT hidden FROM projects WHERE id='catalog-photocraft'")
+        .get().hidden,
+      1,
+    );
+    assert.equal(
+      db.prepare("SELECT id FROM projects WHERE id='catalog-graphite'").get(),
+      undefined,
+    );
+    assert.equal(
+      JSON.parse(
+        db
+          .prepare("SELECT metadata FROM catalog_entries WHERE slug='penpot'")
+          .get().metadata,
+      ).reviewedAt,
+      "2026-10-15",
+    );
+    assert.equal(db.prepare("SELECT COUNT(*) n FROM projects").get().n, 14);
+  } finally {
+    db.close();
+  }
+});
+
+test("uncovered products stay discoverable and Commons project associations respect ownership and moderation", async (t) => {
+  const { app, client } = await harness(t, { seedCatalog: true });
+  const anon = client(),
+    owner = client(),
+    admin = client();
+  const counts = async (slug) =>
+    (await anon.call("/catalog")).data.products.find((p) => p.slug === slug);
+  assert.equal((await counts("after-effects")).count, 0);
+  assert.equal((await counts("after-effects")).commonsCount, 0);
+  assert.equal((await counts("photoshop")).count, 2);
+  assert.equal((await counts("photoshop")).commonsCount, 0);
+  await owner.register("opportunity-builder");
+  await admin.register("opportunity-admin");
+  app.locals.db
+    .prepare("UPDATE users SET role='admin' WHERE id=?")
+    .run(admin.user.id);
+  assert.equal(
+    (
+      await owner.call("/projects", "POST", {
+        ...input,
+        replaces: ["unknown-product"],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await owner.call("/projects", "POST", {
+        ...input,
+        replaces: products.slice(0, 6).map((p) => p.slug),
+      })
+    ).status,
+    400,
+  );
+  const created = await owner.createOwnedProject({
+    ...input,
+    replaces: ["photoshop", "after-effects", "photoshop"],
+  });
+  assert.equal(created.status, 201);
+  const id = created.data.project.id;
+  assert.deepEqual(created.data.project.replaces, [
+    "after-effects",
+    "photoshop",
+  ]);
+  assert.equal((await counts("after-effects")).commonsCount, 1);
+  assert.equal((await counts("after-effects")).count, 0);
+  assert.equal(
+    (await anon.call(`/projects/${id}`, "PATCH", { replaces: ["figma"] }))
+      .status,
+    401,
+  );
+  const other = client();
+  await other.register("other-builder");
+  assert.equal(
+    (await other.call(`/projects/${id}`, "PATCH", { replaces: ["figma"] }))
+      .status,
+    403,
+  );
+  await owner.call(`/projects/${id}`, "PATCH", { name: "Renamed prototype" });
+  assert.deepEqual((await anon.call(`/projects/${id}`)).data.project.replaces, [
+    "after-effects",
+    "photoshop",
+  ]);
+  await owner.call(`/projects/${id}`, "PATCH", { replaces: ["figma"] });
+  assert.equal((await counts("photoshop")).commonsCount, 0);
+  assert.equal((await counts("figma")).commonsCount, 1);
+  await admin.call(`/admin/projects/${id}`, "PATCH", { hidden: true });
+  assert.equal((await counts("figma")).commonsCount, 0);
+  await admin.call(`/admin/projects/${id}`, "PATCH", { hidden: false });
+  await admin.call(`/admin/users/${owner.user.id}`, "PATCH", {
+    suspended: true,
+  });
+  assert.equal((await counts("figma")).commonsCount, 0);
+  await admin.call(`/admin/users/${owner.user.id}`, "PATCH", {
+    suspended: false,
+  });
+  assert.equal((await counts("figma")).commonsCount, 1);
+  await admin.call(`/projects/${id}`, "DELETE");
+  assert.equal((await counts("figma")).commonsCount, 0);
+  assert.equal(
+    app.locals.db
+      .prepare("SELECT COUNT(*) n FROM project_products WHERE project_id=?")
+      .get(id).n,
+    0,
+  );
+});
 
 test("shared project collaboration, ownership, public profiles and validation", async (t) => {
   const { client } = await harness(t);
@@ -408,7 +808,8 @@ test("account deletion cascades personal and owned content without dangling refe
     b = client();
   await a.register("owner");
   await b.register("member");
-  const id = (await a.createOwnedProject(input)).data.project.id;
+  const id = (await a.createOwnedProject({ ...input, replaces: ["photoshop"] }))
+    .data.project.id;
   await b.call(`/projects/${id}/join`, "PUT", { joined: true });
   await b.call(`/projects/${id}/save`, "PUT", { saved: true });
   await b.call(`/projects/${id}/messages`, "POST", {
@@ -435,6 +836,10 @@ test("account deletion cascades personal and owned content without dangling refe
     0,
   );
   assert.deepEqual(app.locals.db.prepare("PRAGMA foreign_key_check").all(), []);
+  assert.equal(
+    app.locals.db.prepare("SELECT COUNT(*) n FROM project_products").get().n,
+    0,
+  );
 });
 
 test("durable SQLite survives app restart, production cookies and configuration guard", async (t) => {
@@ -457,9 +862,34 @@ test("durable SQLite survives app restart, production cookies and configuration 
     },
   );
   assert.equal(result.status, 201);
+  const registration = await result.json();
+  const linked = await fetch(
+    `http://127.0.0.1:${server.address().port}/api/projects`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: result.headers.get("set-cookie").split(";")[0],
+        "X-CSRF-Token": registration.csrfToken,
+      },
+      body: JSON.stringify({ ...input, replaces: ["after-effects"] }),
+    },
+  );
+  assert.equal(linked.status, 201);
+  const linkedId = (await linked.json()).project.id;
   await new Promise((r) => server.close(r));
   app.locals.close();
   const next = await harness(t, { dbPath });
+  assert.deepEqual(
+    (await next.client().call(`/projects/${linkedId}`)).data.project.replaces,
+    ["after-effects"],
+  );
+  assert.equal(
+    (await next.client().call("/catalog")).data.products.find(
+      (p) => p.slug === "after-effects",
+    ).commonsCount,
+    0,
+  );
   assert.equal(
     (await next.client().call("/builders")).data.builders[0].username,
     "durable",

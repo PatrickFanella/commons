@@ -10,7 +10,7 @@ export function openDatabase(path = ":memory:") {
   const db = new DatabaseSync(path);
   if (path !== ":memory:") chmodSync(path, 0o600);
   const version = db.prepare("PRAGMA user_version").get().user_version;
-  if (version > 3) {
+  if (version > 4) {
     db.close();
     throw new Error("Database schema is newer than this Commons release.");
   }
@@ -79,6 +79,20 @@ export function openDatabase(path = ":memory:") {
       db.exec(
         `ALTER TABLE projects ADD COLUMN repository_verified INTEGER NOT NULL DEFAULT 0; PRAGMA user_version=3;`,
       );
+      db.exec("COMMIT");
+    } catch (error) {
+      db.exec("ROLLBACK");
+      db.close();
+      throw error;
+    }
+  }
+  if (version < 4) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(`CREATE TABLE IF NOT EXISTS catalog_entries(slug TEXT PRIMARY KEY, project_id TEXT UNIQUE REFERENCES projects(id) ON DELETE SET NULL, metadata TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS project_products(project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE, product_slug TEXT NOT NULL, PRIMARY KEY(project_id,product_slug));
+        CREATE INDEX IF NOT EXISTS project_products_slug ON project_products(product_slug);
+        PRAGMA user_version=4;`);
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");

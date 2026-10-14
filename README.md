@@ -21,17 +21,22 @@ npm run dev
 
 Open **http://localhost:5173** (or the loopback URL printed by Vite). The API runs on port 3001; Vite proxies `/api` to it. Local development accepts localhost and IPv4 loopback origins at the configured port. The production API accepts only the configured public HTTPS origin.
 
-The community starts empty. Create your own account and save the recovery key shown once during registration. To make an existing local account an administrator:
+Application startup imports 15 independently curated software references with reviewed workflow comparisons. The community starts without accounts or invented activity. Create your own account and save the recovery key shown once during registration. To make an existing local account an administrator:
 
 ```sh
 npm run admin -- promote your-username
 ```
 
-An optional, labelled PhotoCraft reference can be imported with `npm run admin -- import-photocraft`. It does not create a member, claim affiliation, or invent activity. Production does not import it automatically.
+The replacement index lives at `/alternatives`, with product pages such as `/alternatives/photoshop`. It includes products with no reviewed upstream alternative and separately counts member-owned Commons projects. Each uncovered product links to `/start/:product` to add an existing project or follow a tailored starter guide. `/guides/build-an-alternative` covers REA setup/investigation, behavior specifications, an editable project brief, implementation, verification and inviting collaborators. `/build` highlights active rebuilds and links to upstream contribution opportunities. Curated references do not imply maintainer affiliation. Unclaimed listings accept bookmarks and discussions; verified repository claims enable ownership, membership and progress updates, and count as Commons projects.
+
+Catalog metadata is maintained in `server/catalog.js`, based on the [research report](docs/research/2026-10-14-software-alternatives.md). Startup imports missing records and refreshes reviewed metadata; moderation, community activity, existing project text and deletion decisions are preserved. `npm run admin -- import-catalog` runs the same transactional import manually. The older `import-photocraft` command imports or refreshes only that reference. Changing a source record does not change its review date automatically: update the evidence and date when rechecking it.
 
 ## What works
 
 - Public project discovery, search, categories, status filters, sorting and featured projects.
+- A replacement index for 25 familiar tools, including four products with no reviewed alternative yet, workflow-specific comparisons, maturity/platform/hosting/license-scope/coverage filters, sources and dated maintenance evidence.
+- Member-owned projects can declare up to five products they help replace. Index invitations distinguish upstream references from real Commons projects and preserve the selected product through sign-in.
+- Active rebuild discovery, upstream contribution links, adoption documentation, alpha warnings and edition-specific license notes.
 - Accounts with password login, private recovery keys, logout, password changes, and account deletion.
 - Public builder profiles, skills, websites, owned projects, and profile editing.
 - Public repository listings that start unclaimed, duplicate detection, and account-bound GitHub/Gitea proof-file claiming. Verified maintainers manage projects, source links, contribution needs, and shareable URLs.
