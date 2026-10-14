@@ -1,0 +1,15 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+data
+backups
+*.sqlite
+*.sqlite-*
+coverage
+test-results
+playwright-report
+docs
+assets

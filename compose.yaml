@@ -1,0 +1,36 @@
+services:
+  app:
+    image: open-world:${IMAGE_TAG:-local}
+    build: .
+    init: true
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_PATH: /data/open-world.sqlite
+      PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL to the public HTTPS origin}
+      OPERATOR_NAME: ${OPERATOR_NAME:?Set OPERATOR_NAME to the public operator identity}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:?Set CONTACT_EMAIL to a monitored public contact email}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    volumes:
+      - data:/data
+      - ${BACKUP_DIR:-./backups}:/backups
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  data:

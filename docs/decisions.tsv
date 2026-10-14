@@ -1,0 +1,16 @@
+ts	phase	decision	reason	evidence	result
+2026-10-13	planning	Use a single Node/SQLite service	Self-hostable launch without mandatory external credentials	docs/API.md	Contract recorded
+2026-10-13	planning	Use recovery keys for password recovery	Avoid an unconfigured email system while providing real account recovery	docs/API.md	Account contract recorded
+2026-10-13	planning	Remove fabricated seed data from production	Community and activity claims must reflect real members	src/main.jsx	Prototype is starting point only
+2026-10-13	planning	Public deployment requires a concrete destination	Repository has no remote/domain/deployment configuration	git remote -v	Continue implementation and packaging
+2026-10-13	API	Use same-origin cookie sessions and server authorization	Private actions must not rely on browser state	server/app.js; server/app.test.js	Permission and session tests pass
+2026-10-13	review	Exclude session reads from credential throttling	Normal participation was reaching the login limit	server/app.test.js	Session-read regression passes
+2026-10-13	review	Attach credential limits to routes directly	Express route aliases bypassed an exact-path limiter	server/app.test.js	Case and trailing-slash regression passes
+2026-10-13	review	Reject whitespace-only new passwords	They were accepted at registration but could not sign in	server/app.test.js	Password validation and session preservation regressions pass
+2026-10-13	review	Preserve recovery-key display across browser Back	The one-time key could disappear and leave navigation locked	src/App.jsx; browser verification	Back retained the key; recovery and new-password sign-in passed
+2026-10-13	review	Include reported discussion context for admins	Moderators need to inspect the actual reported content	server/app.js; src/components/Admin.jsx	Hidden-parent inspection and admin removal tests pass
+2026-10-13	review	Cancel stale project reads	Late responses could show one project while posting to another	src/components/Projects.jsx	AbortController and request sequence guard implemented
+2026-10-13	frontend	Serve fonts locally and improve text contrast	Avoid external font requests and unreadable secondary text	src/style.css; src/main.jsx	Axe WCAG checks show no violations on checked main pages
+2026-10-13	operation	Require public operator/contact configuration	Users need a real contact method on privacy and terms pages	server/app.js; src/components/Info.jsx	Production configuration rejects missing metadata
+2026-10-13	deployment	Build and test a non-root persistent container	Make installation and data recovery reproducible	docs/DEPLOYMENT.md	Disposable production container, restart, backup and restore verified
+2026-10-13	launch	Keep public deployment pending	No public domain, host, operator contact or backup destination was supplied	docs/LAUNCH-STATUS.md	Implementation continues through final verification; external setup pending
