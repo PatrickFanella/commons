@@ -1,6 +1,6 @@
 # Commons launch status
 
-Application implementation is complete and verified locally. Public deployment is on hold at the user’s request as of October 14, 2026.
+Commons is live at **https://commons.subcult.tv**. The user resumed deployment on October 14, 2026. Application, real HTTPS account flows, operator administration, and encrypted off-host backup/restore checks passed.
 
 Verification completed October 13, 2026 (America/Chicago), with Node 26 on the development host and Node 24.21.0 in the production image. The development preview is available at http://localhost:5173. It includes one clearly labelled PhotoCraft reference and no seeded community accounts or invented activity. Temporary QA accounts, their projects, messages, memberships, bookmarks and reports were removed after testing. A new production database starts empty.
 
@@ -47,18 +47,17 @@ Independent review found and resolved:
 6. Administrators could not remove a reported message after hiding its parent project. Authorized administrators can now remove hidden/suspended-parent messages; public visibility remains restricted.
 7. Late project reads could show stale content for another route. Detail requests now cancel previous reads and guard results with a request sequence.
 
-## Remaining external launch steps
+## Public deployment, October 14, 2026
 
-The user selected **Patrick Fanella** as the operator and **info@subcult.tv** as the public contact email on October 14, 2026. These values are saved in the ignored local `.env` file. The public domain, hosting destination, production administrator, off-host backup destination, and Git remote remain unconfigured. Deployment must remain on hold until the user requests resumption. No public infrastructure was modified and no public launch is claimed.
+NUC runs `commons-app` from source `ff1e21baea4b`, with persistent SQLite storage, network `10.252.84.0/28`, and backend port 3086 limited to the Almaz edge. Existing Cloudflare wildcard ingress and Caddy serve the public HTTPS domain. Caddy was reloaded without restarting its container. No development data was copied.
 
-When the user resumes deployment:
+Operator: **Patrick Fanella**; public contact: **info@subcult.tv**. The owner confirmed account **patrick__eff**, which has administrator access. Refresh the site to see Moderation in its account menu. The source remote is `https://git.subcult.tv/subculture-collective/commons.git`.
 
-1. Select the public domain and persistent host. Configure DNS and an HTTPS reverse proxy for that exact origin.
-2. Set `PUBLIC_URL`, `OPERATOR_NAME`, `CONTACT_EMAIL`, proxy settings, and the private backup path in the production environment. Review the site’s policies against the actual operator’s practices and chosen retention schedule.
-3. Follow `docs/DEPLOYMENT.md` to start the application on a persistent volume.
-4. Create the real operator account through HTTPS, save its recovery key, and promote it using the trusted-host CLI. No administrator password is pre-created.
-5. Configure off-host backups, test a restore in isolation, and verify registration/login/recovery/project collaboration/moderation from the actual public HTTPS URL.
-6. Choose a repository remote if source hosting or hosted CI is wanted. No remote was invented or pushed to during this work.
+Real public browser checks passed for registration, recovery-key display, Secure/HttpOnly session use, project submission, missing-CSRF rejection and account deletion. The labelled launch-check account and its project were removed. Public HTML, scripts, fonts, operator metadata, HTTPS headers and HTTP-to-HTTPS redirect passed. The backend is healthy with zero restarts. Direct LAN backend access from Sputnik is denied, while Almaz can reach it.
+
+Dedicated `commons-backup.timer` is enabled. Manual encrypted backups to the existing NUC restic store on Kvant succeeded; an off-host snapshot was independently restored in a network-disabled container and passed integrity checks. The next naturally scheduled execution remains unobserved. Owner moderation interaction after promotion has not been exercised from the agent’s own browser session.
+
+See [public deployment and scoped rollback](PUBLIC-DEPLOYMENT.md) for exact paths, image, guard and recovery details. Persistent data and recovery copies are preserved. Other services and their backups were not migrated or restarted.
 
 ## Product boundaries
 

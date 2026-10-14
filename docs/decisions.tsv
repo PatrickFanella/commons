@@ -18,3 +18,5 @@ ts	phase	decision	reason	evidence	result
 2026-10-14	launch	Hold public deployment	User explicitly requested holding off	docs/LAUNCH-STATUS.md	No deployment work proceeds without resumption
 2026-10-14	brand	Name the project Commons and adopt the workshop design system	User chose the name and visual direction from four rendered options	docs/BRAND.md; src/tokens.css	Tokens, fonts, mark and app restyle implemented
 2026-10-14	brand	Release code under MIT and brand assets under CC BY 4.0	User set open source as the default; MIT is the least restrictive common choice and is easy to change before first public release	LICENSE; docs/BRAND.md	Recorded; license choice can be revisited before launch
+2026-10-14	deployment	Deploy commons.subcult.tv on NUC behind Almaz	User resumed deployment at this domain	docs/PUBLIC-DEPLOYMENT.md	Public HTTPS and source-backed account flows verified
+2026-10-14	administration	Promote patrick__eff	Owner confirmed this registered username	NUC trusted-host CLI and role readback	Administrator role granted; no owner credentials handled
