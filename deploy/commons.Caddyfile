@@ -1,0 +1,13 @@
+http://commons.subcult.tv {
+    @plain header X-Forwarded-Proto http
+    redir @plain https://commons.subcult.tv{uri} 308
+    request_body {
+        max_size 32KB
+    }
+    header -Server
+    reverse_proxy 10.0.0.56:3086 {
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-For {client_ip}
+        header_up X-Real-IP {client_ip}
+    }
+}

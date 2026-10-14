@@ -1,0 +1,11 @@
+[Unit]
+Description=Restrict Commons backend ingress to the Almaz edge
+Requires=docker.service
+After=docker.service
+PartOf=docker.service
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/apps/projects/commons/current/deploy/ingress-guard.sh
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

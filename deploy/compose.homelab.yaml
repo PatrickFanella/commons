@@ -1,0 +1,16 @@
+services:
+  app:
+    container_name: commons-app
+    cpus: 1.0
+    mem_limit: 512m
+    pids_limit: 160
+    ports: !override
+      - "127.0.0.1:3086:3000"
+      - "10.0.0.56:3086:3000"
+    networks:
+      - commons
+networks:
+  commons:
+    ipam:
+      config:
+        - subnet: 10.252.84.0/28
