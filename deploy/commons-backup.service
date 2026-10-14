@@ -1,0 +1,12 @@
+[Unit]
+Description=Consistent Commons snapshot and encrypted Kvant backup
+Requires=docker.service
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /srv/apps/projects/commons/current/deploy/backup-homelab.sh
+UMask=0077
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
