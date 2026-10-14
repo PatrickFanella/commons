@@ -1,17 +1,18 @@
 import React from "react";
-import { ArrowRight, Globe2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { Mark } from "./Mark.jsx";
 export function AboutPage({ onShare, navigate }) {
   return (
     <div className="about-page">
-      <span className="eyebrow">THE IDEA BEHIND OPEN WORLD</span>
+      <span className="eyebrow">THE IDEA BEHIND COMMONS</span>
       <h1>
         The tools we use
         <br />
         can belong to all of us.
       </h1>
       <p>
-        Open World is a meeting place for people rebuilding familiar tools in
-        the open. Share what you’re making, learn from others, and find
+        Commons is a meeting place for people rebuilding familiar tools in the
+        open. Share what you’re making, learn from others, and find
         collaborators who care about the same problems.
       </p>
       <div className="principles">
@@ -43,7 +44,7 @@ export function AboutPage({ onShare, navigate }) {
         Share your project <ArrowRight size={17} />
       </button>
       <div className="about-reference">
-        <Globe2 size={22} />
+        <Mark size={22} />
         <p>
           Inspired by work like{" "}
           <a
@@ -92,7 +93,7 @@ const content = {
   },
   privacy: {
     eyebrow: "YOUR INFORMATION, EXPLAINED",
-    title: "Privacy on Open World.",
+    title: "Privacy on Commons.",
     sections: [
       [
         "What we store.",
@@ -104,7 +105,7 @@ const content = {
       ],
       [
         "Cookies and external services.",
-        "Open World uses an essential HttpOnly session cookie. There are no advertising cookies, third-party analytics, or embedded trackers. External repository and website links take you to services with their own policies. Fonts and illustrations are served by this site.",
+        "Commons uses an essential HttpOnly session cookie. There are no advertising cookies, third-party analytics, or embedded trackers. External repository and website links take you to services with their own policies. Fonts and illustrations are served by this site.",
       ],
       [
         "Retention and deletion.",
@@ -130,11 +131,11 @@ const content = {
       ],
       [
         "Your work stays yours.",
-        "You retain ownership of the content you share. By posting it, you allow Open World to store and display it to operate the community. Repository code remains subject to its own license; posting a project here doesn’t change that license.",
+        "You retain ownership of the content you share. By posting it, you allow Commons to store and display it to operate the community. Repository code remains subject to its own license; posting a project here doesn’t change that license.",
       ],
       [
         "Share work you have the right to share.",
-        "Only post content you own or have permission to share. Clearly identify your relationship to a project. Curated references are independent pointers to public work and do not imply that its maintainers endorse or participate in Open World.",
+        "Only post content you own or have permission to share. Clearly identify your relationship to a project. Curated references are independent pointers to public work and do not imply that its maintainers endorse or participate in Commons.",
       ],
       [
         "Community care.",

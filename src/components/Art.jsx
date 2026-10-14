@@ -8,6 +8,9 @@ function Avatar({ name = "M", index = 0 }) {
   );
 }
 function WorldArt() {
+  const plots = [];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) plots.push([c, r]);
+  const claimed = new Set(["1,0", "4,1", "2,2", "0,3", "5,3"]);
   return (
     <svg
       className="world-art"
@@ -15,40 +18,31 @@ function WorldArt() {
       fill="none"
       aria-hidden="true"
     >
-      <g transform="translate(202 133) rotate(-20)">
-        <circle r="95" stroke="#5f8d76" strokeWidth="1.2" />
-        <ellipse rx="48" ry="95" stroke="#5f8d76" />
-        <ellipse rx="78" ry="95" stroke="#5f8d76" />
+      <g transform="translate(40 30)">
+        {plots.map(([c, r]) => (
+          <rect
+            key={c + "," + r}
+            x={c * 54}
+            y={r * 54}
+            width="54"
+            height="54"
+            stroke="currentColor"
+            strokeWidth="2"
+            fill={claimed.has(c + "," + r) ? "var(--paper-2)" : "none"}
+          />
+        ))}
+        <rect x="73" y="19" width="16" height="16" fill="var(--clay)" />
+        <rect x="235" y="73" width="16" height="16" fill="var(--moss)" />
+        <rect x="127" y="127" width="16" height="16" fill="var(--ochre)" />
+        <rect x="19" y="181" width="16" height="16" fill="var(--clay)" />
+        <rect x="289" y="181" width="16" height="16" fill="var(--slate)" />
         <path
-          d="M-94 0H94M-86-40H86M-86 40H86M-63-72H63M-63 72H63"
-          stroke="#5f8d76"
-        />
-        <path d="M0-95V95" stroke="#5f8d76" />
-        <ellipse
-          rx="154"
-          ry="38"
-          transform="rotate(-15)"
-          stroke="#87a78c"
-          strokeDasharray="4 6"
-        />
-        <circle cx="-133" cy="51" r="9" fill="#285a48" />
-        <circle cx="124" cy="-44" r="5" fill="#285a48" />
-      </g>
-      <g transform="translate(299 46) rotate(9)">
-        <rect width="42" height="42" rx="11" fill="#fcfaf2" stroke="#ccd8c7" />
-        <path
-          d="m17 14-6 7 6 7m8-14 6 7-6 7"
-          stroke="#426957"
+          d="M81 27h162v54m0 0v54h-108v54"
+          stroke="var(--clay)"
           strokeWidth="2"
+          strokeDasharray="5 6"
         />
       </g>
-      <g transform="translate(59 167) rotate(-9)">
-        <rect width="42" height="42" rx="11" fill="#fcfaf2" stroke="#ccd8c7" />
-        <path d="m12 22 8-9 9 9-9 9-8-9Z" stroke="#426957" strokeWidth="2" />
-      </g>
-      <path d="M75 64v12m-6-6h12M320 192v12m-6-6h12" stroke="#7d9c7f" />
-      <circle cx="115" cy="36" r="3" fill="#a4b895" />
-      <circle cx="352" cy="137" r="3" fill="#a4b895" />
     </svg>
   );
 }

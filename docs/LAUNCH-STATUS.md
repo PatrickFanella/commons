@@ -1,4 +1,4 @@
-# Open World launch status
+# Commons launch status
 
 Application implementation is complete and verified locally. Public deployment is on hold at the user’s request as of October 14, 2026.
 

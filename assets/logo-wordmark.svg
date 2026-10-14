@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 44" width="232" height="44" role="img" aria-label="Commons">
+  <rect x="2" y="2" width="40" height="40" fill="#f7f2e7" stroke="#2f2620" stroke-width="2.5"/>
+  <path d="M10 16h24M10 22h24M10 28h24M16 10v24M22 10v24M28 10v24" stroke="#2f2620" stroke-width="2.5"/>
+  <rect x="22" y="22" width="6" height="6" fill="#b5552f"/>
+  <text x="56" y="31" font-family="'IBM Plex Mono', 'Cascadia Code', ui-monospace, monospace" font-size="28" font-weight="500" letter-spacing="-0.8" fill="#2f2620">commons</text>
+</svg>

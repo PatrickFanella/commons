@@ -25,7 +25,7 @@ export async function api(path, options = {}) {
   }
   if (!response.ok) {
     if (response.status === 401 && result.code === "UNAUTHENTICATED")
-      window.dispatchEvent(new Event("openworld:session-expired"));
+      window.dispatchEvent(new Event("commons:session-expired"));
     const error = new Error(
       result.error || "Something went wrong. Please try again.",
     );

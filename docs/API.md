@@ -1,4 +1,4 @@
-# Open World API contract
+# Commons API contract
 
 All API paths are prefixed `/api`. JSON response objects and errors `{error: string, code?: string}`. Mutation requests send `Content-Type: application/json`. Session cookies are HttpOnly and SameSite=Lax; production uses Secure. Authenticated mutations send `X-CSRF-Token` from session response. Reject foreign Origin on every mutation, including auth. Development origin `http://localhost:5173` via Vite proxy; production PUBLIC_URL mandatory.
 

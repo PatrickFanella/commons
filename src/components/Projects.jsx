@@ -10,7 +10,6 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Compass,
-  Globe2,
   Plus,
   Check,
   ExternalLink,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import { api, categories, dateLabel } from "../api.js";
 import { Avatar, WorldArt, ProjectArt } from "./Art.jsx";
+import { Mark } from "./Mark.jsx";
 import { ErrorMessage, useAction } from "./Forms.jsx";
 export function ProjectCard({ project: p, navigate, onSave }) {
   return (
@@ -159,7 +159,7 @@ export function ProjectsPage({
         <h1>
           {page === "saved"
             ? "Keep your discoveries close."
-            : "Your corner of the world."}
+            : "Your corner of the commons."}
         </h1>
         <p>
           Sign in to see{" "}
@@ -180,7 +180,7 @@ export function ProjectsPage({
           <div className="hero-copy">
             <div className="eyebrow">
               <span className="live-dot" />
-              THE FUTURE IS OPEN
+              BUILT IN THE OPEN
             </div>
             <h1>
               Big ideas.
@@ -188,20 +188,19 @@ export function ProjectsPage({
               Built together.
             </h1>
             <p>
-              A home for people rebuilding what’s possible.
-              <br />
+              A home for people rebuilding what’s possible. <br />
               Discover open projects, find your people, and get building.
             </p>
             <button className="primary" onClick={onShare}>
               Share your project <ArrowUpRight size={17} />
             </button>
             <div className="hero-community">
-              <Globe2 size={20} />
+              <Mark size={20} />
               <span>Independent builders. Shared possibilities.</span>
             </div>
           </div>
           <WorldArt />
-          <span className="hero-footnote">LESS GATEKEEPING. MORE MAKING.</span>
+          <span className="hero-footnote">SHARED GROUND. KEPT TOGETHER.</span>
         </section>
       )}
       <section className="projects-section">
@@ -212,7 +211,7 @@ export function ProjectsPage({
                 ? "Discover your next rabbit hole."
                 : page === "saved"
                   ? "Your next rabbit holes."
-                  : "Your corner of the world."}
+                  : "Your corner of the commons."}
             </h2>
             <p>
               {page === "explore"
@@ -349,7 +348,7 @@ export function ProjectsPage({
           </div>
         )}
         <div className="bottom-invite">
-          <Globe2 size={20} />
+          <Mark size={20} />
           <span>The next great open project could be yours.</span>
           <button onClick={onShare}>
             Let’s build it <ArrowRight size={15} />
@@ -544,11 +543,11 @@ export function ProjectPage({
       </div>
       {p.external && (
         <div className="reference-notice">
-          <Globe2 size={18} />
+          <Mark size={18} />
           <p>
             This is an independent, curated reference. Its maintainers haven’t
-            joined Open World. Collaboration and bookmark counts reflect
-            activity here; visit the source repository to contribute upstream.
+            joined Commons. Collaboration and bookmark counts reflect activity
+            here; visit the source repository to contribute upstream.
           </p>
         </div>
       )}

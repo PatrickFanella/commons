@@ -1,0 +1,127 @@
+/* Commons design tokens.
+   Workshop system: linen paper, walnut ink, clay for actions, moss for
+   confirmation, ochre for highlights. Every colour, radius, border width
+   and typeface in the interface comes from here. See docs/BRAND.md. */
+:root {
+  color-scheme: light dark;
+
+  /* Type */
+  --font-sans:
+    "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 40px;
+  --tracking-label: 0.08em;
+
+  /* Shape */
+  --radius-sm: 2px;
+  --radius: 4px;
+  --radius-lg: 6px;
+  --line: 2px;
+  --line-thin: 1px;
+
+  /* Light palette */
+  --paper: #ece5d4;
+  --paper-2: #f7f2e7;
+  --paper-tint: #e3dbc8;
+  --paper-3: #d9ceb6;
+  --ink: #2f2620;
+  --ink-2: #5a4e45;
+  --ink-3: #74665b;
+  --line-soft: #c7bba3;
+  --clay: #b5552f;
+  --clay-ink: #8e3f1f;
+  --clay-soft: #f0d8cb;
+  --clay-text: #9c4523;
+  --moss: #5b6b3a;
+  --moss-ink: #45522b;
+  --moss-soft: #dde0c6;
+  --ochre: #c9a24a;
+  --ochre-ink: #6e5420;
+  --ochre-soft: #f0e3bd;
+  --slate: #5f7584;
+  --plum: #7f5e74;
+  --danger: #9b3a2a;
+  --danger-ink: #7a2c1f;
+  --danger-soft: #f2d6cd;
+  --danger-text: #8a3122;
+  --on-clay: #fff8f0;
+  --on-ink: #ece5d4;
+  --focus: #b5552f;
+  --overlay: rgba(47, 38, 32, 0.55);
+  --shadow-soft: 0 2px 0 rgba(47, 38, 32, 0.12);
+  --shadow-offset: 4px 4px 0 var(--ink);
+  --shadow-offset-sm: 3px 3px 0 var(--ink);
+  --art-filter: sepia(0.22) saturate(0.85);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #26201b;
+    --paper-2: #322a24;
+    --paper-tint: #3b322b;
+    --paper-3: #473c33;
+    --ink: #ece5d4;
+    --ink-2: #cfc3ab;
+    --ink-3: #ab9d8d;
+    --line-soft: #574a3f;
+    --clay: #d9774f;
+    --clay-ink: #ec946f;
+    --clay-soft: #4a2d21;
+    --clay-text: #ee9a76;
+    --moss: #9fac6e;
+    --moss-ink: #b8c48a;
+    --moss-soft: #39402a;
+    --ochre: #d8b35f;
+    --ochre-ink: #e6c67a;
+    --ochre-soft: #4a3d1e;
+    --slate: #8ea4b3;
+    --plum: #b08aa5;
+    --danger: #e07a62;
+    --danger-ink: #f0987f;
+    --danger-soft: #4b2820;
+    --danger-text: #f3a08a;
+    --on-clay: #1d1612;
+    --on-ink: #26201b;
+    --focus: #ec946f;
+    --overlay: rgba(0, 0, 0, 0.62);
+    --shadow-soft: 0 2px 0 rgba(0, 0, 0, 0.35);
+    --art-filter: sepia(0.22) saturate(0.8) brightness(0.82);
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #26201b;
+  --paper-2: #322a24;
+  --paper-tint: #3b322b;
+  --paper-3: #473c33;
+  --ink: #ece5d4;
+  --ink-2: #cfc3ab;
+  --ink-3: #ab9d8d;
+  --line-soft: #574a3f;
+  --clay: #d9774f;
+  --clay-ink: #ec946f;
+  --clay-soft: #4a2d21;
+  --clay-text: #ee9a76;
+  --moss: #9fac6e;
+  --moss-ink: #b8c48a;
+  --moss-soft: #39402a;
+  --ochre: #d8b35f;
+  --ochre-ink: #e6c67a;
+  --ochre-soft: #4a3d1e;
+  --slate: #8ea4b3;
+  --plum: #b08aa5;
+  --danger: #e07a62;
+  --danger-ink: #f0987f;
+  --danger-soft: #4b2820;
+  --danger-text: #f3a08a;
+  --on-clay: #1d1612;
+  --on-ink: #26201b;
+  --focus: #ec946f;
+  --overlay: rgba(0, 0, 0, 0.62);
+  --shadow-soft: 0 2px 0 rgba(0, 0, 0, 0.35);
+  --art-filter: sepia(0.22) saturate(0.8) brightness(0.82);
+}

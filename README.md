@@ -1,6 +1,6 @@
-# Open World
+# Commons
 
-A community hub for people rebuilding familiar tools in the open. Discover projects, share your work, find collaborators, and coordinate through project discussions.
+A community hub for people rebuilding familiar tools in the open. Software made by people, for people, in public. Discover projects, share your work, find collaborators, and coordinate through project discussions.
 
 ## Run locally
 
@@ -55,10 +55,15 @@ API integration tests use isolated databases and cover multi-account permissions
 
 The Docker/Compose package runs one unprivileged application replica with a persistent database and a health check. Production requires `PUBLIC_URL`, `OPERATOR_NAME`, and `CONTACT_EMAIL`. Place it behind HTTPS and configure private off-host backups before accepting users.
 
+- [Brand and design system](docs/BRAND.md)
 - [Deployment and backup/restore instructions](docs/DEPLOYMENT.md)
 - [Launch status and remaining external steps](docs/LAUNCH-STATUS.md)
 - [Implementation plan](docs/superpowers/plans/2026-10-13-launch.md)
 - [API contract](docs/API.md)
 - [Decision record](docs/decisions.tsv)
+
+## License
+
+Code is released under the MIT License; brand assets are CC BY 4.0; bundled fonts are under the SIL Open Font License. See `docs/BRAND.md` for the full table.
 
 Public hosting, domain/DNS, operator identity/contact, a real administrator and backup destination are deployment choices. The repository does not provision or change shared infrastructure.

@@ -14,7 +14,7 @@ export default class ErrorBoundary extends React.Component {
             try again.
           </p>
           <button className="primary" onClick={() => location.reload()}>
-            Reload Open World
+            Reload Commons
           </button>
         </main>
       );

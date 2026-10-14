@@ -16,3 +16,5 @@ ts	phase	decision	reason	evidence	result
 2026-10-13	launch	Keep public deployment pending	No public domain, host, operator contact or backup destination was supplied	docs/LAUNCH-STATUS.md	Implementation continues through final verification; external setup pending
 2026-10-14	launch	Set operator Patrick Fanella and public contact info@subcult.tv	User supplied the launch identity and contact	.env; docs/LAUNCH-STATUS.md	Saved locally; no deployment
 2026-10-14	launch	Hold public deployment	User explicitly requested holding off	docs/LAUNCH-STATUS.md	No deployment work proceeds without resumption
+2026-10-14	brand	Name the project Commons and adopt the workshop design system	User chose the name and visual direction from four rendered options	docs/BRAND.md; src/tokens.css	Tokens, fonts, mark and app restyle implemented
+2026-10-14	brand	Release code under MIT and brand assets under CC BY 4.0	User set open source as the default; MIT is the least restrictive common choice and is easy to change before first public release	LICENSE; docs/BRAND.md	Recorded; license choice can be revisited before launch
