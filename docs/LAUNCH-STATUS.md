@@ -1,6 +1,6 @@
 # Open World launch status
 
-Application implementation is complete and verified locally. Public launch is pending deployment configuration, not a known application defect.
+Application implementation is complete and verified locally. Public deployment is on hold at the user’s request as of October 14, 2026.
 
 Verification completed October 13, 2026 (America/Chicago), with Node 26 on the development host and Node 24.21.0 in the production image. The development preview is available at http://localhost:5173. It includes one clearly labelled PhotoCraft reference and no seeded community accounts or invented activity. Temporary QA accounts, their projects, messages, memberships, bookmarks and reports were removed after testing. A new production database starts empty.
 
@@ -49,9 +49,9 @@ Independent review found and resolved:
 
 ## Remaining external launch steps
 
-The repository has no configured Git remote, public domain, selected hosting destination, real operator contact, production administrator, or off-host backup destination. These values were not supplied by the user; an asynchronous request for them is pending. No public infrastructure was modified and no public launch is claimed.
+The user selected **Patrick Fanella** as the operator and **info@subcult.tv** as the public contact email on October 14, 2026. These values are saved in the ignored local `.env` file. The public domain, hosting destination, production administrator, off-host backup destination, and Git remote remain unconfigured. Deployment must remain on hold until the user requests resumption. No public infrastructure was modified and no public launch is claimed.
 
-To launch:
+When the user resumes deployment:
 
 1. Select the public domain and persistent host. Configure DNS and an HTTPS reverse proxy for that exact origin.
 2. Set `PUBLIC_URL`, `OPERATOR_NAME`, `CONTACT_EMAIL`, proxy settings, and the private backup path in the production environment. Review the site’s policies against the actual operator’s practices and chosen retention schedule.
