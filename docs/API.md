@@ -27,7 +27,9 @@ Report: `{id, projectId?, messageId?, updateId?, reason, createdAt, resolved, re
 - GET `/projects` -> `{projects: Project[]}` only published/non-hidden. Empty permitted, no fake content in production.
 - GET `/projects/:id` -> `{project, members: User public[]}`.
 - POST `/projects` project writable fields and optional `listingType: "reference"` -> `{project}` (201), unclaimed. Other listing types rejected. Supported repository duplicates return 409, including normalized case and `.git` suffix variations.
+- Project requests and responses include `replaces: string[]`, up to five known product slugs. Omission on create means no linked products; omission on edit preserves current associations. An empty array removes associations. Unknown products are rejected. Associations are stored transactionally with project creation/editing and removed on project/account deletion.
 - PATCH `/projects/:id` writable fields -> `{project}` owner or admin.
+- Unclaimed catalog references return 409 on project text edits; their reviewed metadata is maintained in the source catalog. Claimed owners can edit project text and replacement goals while catalog metadata remains read-only. Moderation hiding, featuring and deletion remain available.
 - DELETE `/projects/:id` -> `{ok:true}` owner or admin.
 - PUT `/projects/:id/save` `{saved:boolean}` -> `{project}`; idempotent.
 - PUT `/projects/:id/join` `{joined:boolean, role?:string}` -> `{project}`; idempotent; role max 80. Owner cannot leave own project.
@@ -46,8 +48,6 @@ Report: `{id, projectId?, messageId?, updateId?, reason, createdAt, resolved, re
 - PATCH `/admin/projects/:id` `{hidden?:boolean,featured?:boolean}` -> `{project}`.
 - GET `/admin/users` -> `{users: (User & {suspended:boolean,role:string})[]}`.
 - PATCH `/admin/users/:id` `{suspended:boolean}` -> `{ok:true}`; prevent self/last-admin suspension. Suspended users lose sessions and cannot participate.
-
-Health GET `/health` -> `{ok:true}`. Serve production dist + SPA routes including `/projects/:id`, `/builders/:username`, `/saved`, `/mine`, `/about`, `/settings`, `/admin`, `/privacy`, `/terms`, `/guidelines`. Unknown `/api` always JSON 404. Frontend handles route-level 404.
 
 ## Private account email
 
@@ -78,3 +78,11 @@ Discussion replies must target an existing root message in the same visible proj
 - POST `/projects/:id/claim/verify` `{claimId}` -> `{ok:true}`. Only the requesting account can verify its challenge. Proof lives at `.commons/claims/<claimId>.txt` on the repository default branch and expires in 24 hours. Proof content binds site origin, project, account and a random key. Commons stores only its hash.
 
 Verification reads the providers' official contents APIs with fixed hosts, no redirects, a 10-second timeout and bounded response/file sizes. It proves repository write access, including an organization maintainer with permission to commit. It does not establish legal ownership or exclusive Git-host organization ownership. After the network read, the transfer rechecks session, suspension, repository, expiry and current ownership in one transaction. A competing claim cannot overwrite the winner. All pending challenges are removed after a successful transfer. Bookmarks, discussions and listing identity survive the claim. Proof files may be removed afterward. Unclaimed listings accept bookmarks and discussion but do not accept Commons memberships or progress updates.
+
+## Replacement catalog
+
+- GET `/catalog` -> `{products: {slug,name,workflow,website?,count,commonsCount}[], directories: {name,url,description}[]}`. `count` includes visible reviewed catalog records, excluding suspended owners. `commonsCount` includes visible claimed projects linked through `replaces` or curated comparison mappings; each project is counted once per product. Unclaimed references and suspended owners are excluded. Indexed products remain available when either count is zero. “No reviewed alternative yet” describes this collection, not global software availability.
+- Project responses add `catalog: null | {slug, reviewedAt, reviewer, maturity, licenseScope, license, licenseUrl, licenseNote, platforms: string[], hosting: string[], website, contribute, adoption, activity: {date,label,url,kind}, comparisons: {product,workflow,gaps,source,coverage}[]}`.
+- Catalog metadata is read-only over HTTP. Application startup and `admin import-catalog` import missing references transactionally and refresh metadata. Deleted entries remain recorded with a null project ID so they are not recreated. Hidden references stay hidden. Bookmarks and discussions are preserved. References have no upstream memberships; `PUT /projects/:id/join` returns 409 for external entries.
+
+Health GET `/health` -> `{ok:true}`. Serve production dist + SPA routes including `/alternatives`, `/alternatives/:slug`, `/start/:slug`, `/guides/build-an-alternative`, `/build`, `/projects/:id`, `/builders/:username`, `/saved`, `/mine`, `/about`, `/settings`, `/admin`, `/privacy`, `/terms`, `/guidelines`. Unknown `/api` always JSON 404. Frontend handles route-level 404.

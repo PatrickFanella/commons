@@ -65,7 +65,7 @@ test("launch database migrates without losing ownership, credentials, sessions o
     );
   launch.close();
   let db = openDatabase(path);
-  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 3);
+  assert.equal(db.prepare("PRAGMA user_version").get().user_version, 4);
   const user = db.prepare("SELECT * FROM users").get();
   assert.equal(user.role, "admin");
   assert.equal(user.password, "original-password-hash");

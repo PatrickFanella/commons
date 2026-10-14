@@ -15,6 +15,7 @@ import {
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { openDatabase } from "./db.js";
+import { importCatalog, products, directories } from "./catalog.js";
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const secret = () => randomBytes(32).toString("base64url");
@@ -105,6 +106,7 @@ const writable = [
   "needs",
   "status",
   "art",
+  "replaces",
 ];
 const now = () => new Date().toISOString();
 
@@ -166,6 +168,7 @@ export function createApp(options = {}) {
         resolve(process.env.DATA_DIR ?? "data", "commons.sqlite"),
     );
   const app = express();
+  if (options.seedCatalog) importCatalog(db);
   app.locals.db = db;
   app.locals.close = () => db.close();
   app.disable("x-powered-by");
@@ -275,6 +278,17 @@ export function createApp(options = {}) {
     external: !!p.external,
     repositoryVerified: !!p.repository_verified,
     claimable: !!p.external && !p.owner_id && !!repositoryInfo(p.repo),
+    replaces: all(
+      "SELECT product_slug FROM project_products WHERE project_id=? ORDER BY product_slug",
+      p.id,
+    ).map((row) => row.product_slug),
+    catalog: (() => {
+      const entry = get(
+        "SELECT slug,metadata FROM catalog_entries WHERE project_id=?",
+        p.id,
+      );
+      return entry ? { slug: entry.slug, ...JSON.parse(entry.metadata) } : null;
+    })(),
   });
   const visible = (id) => {
     const p = get(
@@ -598,8 +612,46 @@ export function createApp(options = {}) {
       needs: string(data.needs ?? "", "Needs", 1000),
       status: choice(data.status ?? "In progress", statuses, "status"),
       art: choice(data.art ?? "canvas", arts, "art"),
+      replaces: list(data.replaces ?? [], "Products to replace", 5, 80).map(
+        (slug) =>
+          choice(
+            slug,
+            products.map((p) => p.slug),
+            "product to replace",
+          ),
+      ),
     };
   };
+  app.get("/api/catalog", (req, res) => {
+    const entries = all(
+      "SELECT c.metadata,p.id,p.owner_id FROM catalog_entries c JOIN projects p ON p.id=c.project_id LEFT JOIN users u ON u.id=p.owner_id WHERE p.hidden=0 AND (u.id IS NULL OR u.suspended=0)",
+    ).map((row) => ({
+      ...JSON.parse(row.metadata),
+      projectId: row.id,
+      ownerId: row.owner_id,
+    }));
+    res.json({
+      products: products.map((p) => ({
+        ...p,
+        count: entries.filter((e) =>
+          e.comparisons.some((c) => c.product === p.slug),
+        ).length,
+        commonsCount: new Set([
+          ...all(
+            "SELECT pr.id FROM project_products t JOIN projects pr ON pr.id=t.project_id JOIN users u ON u.id=pr.owner_id WHERE t.product_slug=? AND pr.hidden=0 AND pr.external=0 AND u.suspended=0",
+            p.slug,
+          ).map((row) => row.id),
+          ...entries
+            .filter(
+              (e) =>
+                e.ownerId && e.comparisons.some((c) => c.product === p.slug),
+            )
+            .map((e) => e.projectId),
+        ]).size,
+      })),
+      directories,
+    });
+  });
   app.get("/api/projects", (req, res) =>
     res.json({
       projects: all(
@@ -676,13 +728,32 @@ export function createApp(options = {}) {
         date,
       );
       recordActivity(id, req.user.id, "reference_listed");
+      for (const slug of d.replaces)
+        run(
+          "INSERT INTO project_products(project_id,product_slug) VALUES(?,?)",
+          id,
+          slug,
+        );
     });
     res.status(201).json({ project: project(visible(id), req.user) });
   });
   app.patch("/api/projects/:id", requireUser, (req, res) => {
     const p = visible(req.params.id);
     owner(p, req.user);
-    const d = projectInput(req.body, { ...p, tags: JSON.parse(p.tags) });
+    if (
+      p.external &&
+      get("SELECT slug FROM catalog_entries WHERE project_id=?", p.id)
+    )
+      fail(
+        409,
+        "Curated catalog facts are maintained in the reviewed collection. You can hide or report this listing.",
+      );
+    const existingInput = {
+      ...p,
+      tags: JSON.parse(p.tags),
+      replaces: project(p, req.user).replaces,
+    };
+    const d = projectInput(req.body, existingInput);
     const repoKey = repositoryKey(d.repo);
     if (p.repository_verified && repoKey !== p.repo_key)
       fail(
@@ -697,9 +768,7 @@ export function createApp(options = {}) {
     )
       fail(409, "This repository is already listed.", "REPOSITORY_EXISTS");
     const changed = Object.keys(d).some(
-      (key) =>
-        JSON.stringify(d[key]) !==
-        JSON.stringify(key === "tags" ? JSON.parse(p.tags) : p[key]),
+      (key) => JSON.stringify(d[key]) !== JSON.stringify(existingInput[key]),
     );
     atomic(() => {
       run(
@@ -721,6 +790,13 @@ export function createApp(options = {}) {
       if (changed) recordActivity(p.id, req.user.id, "project_changed");
       if (p.repo !== d.repo)
         run("DELETE FROM repository_claims WHERE project_id=?", p.id);
+      run("DELETE FROM project_products WHERE project_id=?", p.id);
+      for (const slug of d.replaces)
+        run(
+          "INSERT INTO project_products(project_id,product_slug) VALUES(?,?)",
+          p.id,
+          slug,
+        );
     });
     res.json({ project: project(visible(p.id), req.user) });
   });
@@ -1039,7 +1115,7 @@ export function createApp(options = {}) {
       express.static(dist, { index: false, maxAge: production ? "1h" : 0 }),
     );
     app.get("/{*path}", (req, res) =>
-      res.sendFile(resolve(dist, "index.html"), { dotfiles: "allow" }),
+      res.sendFile("index.html", { root: resolve(dist) }),
     );
   }
   app.use((error, req, res, next) => {

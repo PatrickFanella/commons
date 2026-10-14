@@ -1,5 +1,7 @@
 # Commons launch status
 
+Replacement index and starter guide feature build, October 14: implemented and integrated with repository claims, activity and email flows. All 27 tests, the production build and formatting checks passed; browser checks covered the index, project claim panel and mobile starter guide. Earlier responsive flows and accessibility checks are recorded in [index build verification](research/2026-10-14-build-verification.md) and [starter guide verification](research/2026-10-14-starter-guide-verification.md). These features are not yet part of the public release described below.
+
 Commons is live at **https://commons.subcult.tv**. The user resumed deployment on October 14, 2026. Application, real HTTPS account flows, operator administration, and encrypted off-host backup/restore checks passed.
 
 Verification completed October 13, 2026 (America/Chicago), with Node 26 on the development host and Node 24.21.0 in the production image. The development preview is available at http://localhost:5173. It includes one clearly labelled PhotoCraft reference and no seeded community accounts or invented activity. Temporary QA accounts, their projects, messages, memberships, bookmarks and reports were removed after testing. A new production database starts empty.

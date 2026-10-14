@@ -31,6 +31,8 @@ import {
   ErrorMessage,
 } from "./components/Forms.jsx";
 import { ProjectsPage, ProjectPage } from "./components/Projects.jsx";
+import { AlternativesPage, BuildPage } from "./components/Catalog.jsx";
+import { StartGuide } from "./components/StartGuide.jsx";
 import {
   BuildersPage,
   BuilderPage,
@@ -42,6 +44,12 @@ function routeFrom(path) {
   try {
     const parts = path.replace(/\/$/, "").split("/").filter(Boolean);
     if (!parts.length) return { page: "explore" };
+    if (parts[0] === "alternatives" && parts.length === 2)
+      return { page: "alternatives", slug: decodeURIComponent(parts[1]) };
+    if (parts[0] === "start" && parts.length === 2)
+      return { page: "guide", slug: decodeURIComponent(parts[1]) };
+    if (parts.join("/") === "guides/build-an-alternative")
+      return { page: "guide" };
     if (parts[0] === "projects" && parts.length === 2)
       return { page: "project", id: decodeURIComponent(parts[1]) };
     if (parts[0] === "builders" && parts.length === 2)
@@ -61,6 +69,8 @@ function routeFrom(path) {
         "privacy",
         "terms",
         "guidelines",
+        "alternatives",
+        "build",
       ].includes(parts[0])
     )
       return { page: parts[0] };
@@ -128,6 +138,7 @@ export default function App() {
   const [path, setPath] = useState(location.pathname),
     [user, setUser] = useState(null),
     [projects, setProjects] = useState([]),
+    [catalog, setCatalog] = useState({ products: [], directories: [] }),
     [builders, setBuilders] = useState([]),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -139,7 +150,10 @@ export default function App() {
     [menu, setMenu] = useState(false),
     [site, setSite] = useState({ operatorName: "", contactEmail: "" });
   const recoveryRef = useRef(false),
+    pendingShareRef = useRef(null),
+    authUserRef = useRef(null),
     pathRef = useRef(path);
+  authUserRef.current = user;
   pathRef.current = path;
   const setRecoveryLock = (value) => {
     if (value && !recoveryRef.current) history.pushState({}, "", location.href);
@@ -148,11 +162,15 @@ export default function App() {
   };
   const route = routeFrom(path);
   const closeModal = () => {
-    if (!recoveryLocked) setModal(null);
+    if (!recoveryLocked) {
+      pendingShareRef.current = null;
+      setModal(null);
+    }
   };
   const navigate = (url) => {
     if (recoveryRef.current) return;
     history.pushState({}, "", url);
+    pendingShareRef.current = null;
     setPath(location.pathname);
     setCategory("All projects");
     setModal(null);
@@ -164,13 +182,15 @@ export default function App() {
     const session = await api("/auth/session");
     setUser(session.user);
     setCsrf(session.csrfToken);
-    const [p, b, config] = await Promise.all([
+    const [p, b, config, collection] = await Promise.all([
       api("/projects"),
       api("/builders"),
       api("/site"),
+      api("/catalog"),
     ]);
     setSite(config);
     setProjects(p.projects);
+    setCatalog(collection);
     setBuilders(b.builders);
     setRevision((r) => r + 1);
     setError("");
@@ -231,6 +251,13 @@ export default function App() {
         ? projects.find((p) => p.id === route.id)?.name || "Project"
         : {
             explore: "Rebuild familiar tools in the open",
+            alternatives: route.slug
+              ? `Alternatives to ${catalog.products.find((p) => p.slug === route.slug)?.name ?? "software"}`
+              : "Find an alternative",
+            build: "Help build an alternative",
+            guide: route.slug
+              ? `Start an alternative to ${catalog.products.find((p) => p.slug === route.slug)?.name ?? "software"}`
+              : "Build an open alternative",
             builders: "Meet the builders",
             builder: route.username,
             saved: "Saved projects",
@@ -247,7 +274,7 @@ export default function App() {
             404: "Page not found",
           }[route.page];
     document.title = `${title} — Commons`;
-  }, [path, projects]);
+  }, [path, projects, catalog]);
   const notify = (message) => setToast(message);
   const login = () => setModal({ type: "login" });
   const requireUser = (action) => {
@@ -258,7 +285,13 @@ export default function App() {
     action();
     return true;
   };
-  const share = () => requireUser(() => setModal({ type: "share" }));
+  const share = (productSlug) => {
+    const target = typeof productSlug === "string" ? productSlug : null;
+    if (!user) {
+      pendingShareRef.current = { productSlug: target };
+      login();
+    } else setModal({ type: "share", productSlug: target });
+  };
   const save = (p) =>
     requireUser(async () => {
       try {
@@ -291,6 +324,7 @@ export default function App() {
     try {
       await api("/auth/logout", { method: "POST", body: {} });
       setUser(null);
+      authUserRef.current = null;
       setCsrf(null);
       setMenu(false);
       await refresh();
@@ -300,11 +334,25 @@ export default function App() {
     }
   };
   const authSuccess = (result) => {
+    authUserRef.current = result.user;
     setUser(result.user);
     setCsrf(result.csrfToken);
     refresh().catch((e) => notify(e.message));
   };
   const authDone = () => {
+    if (pendingShareRef.current) {
+      if (!authUserRef.current) {
+        setModal({ type: "login" });
+        notify("Your password was reset. Sign in to add your project.");
+        return;
+      }
+      const pending = pendingShareRef.current;
+      pendingShareRef.current = null;
+      setModal({ type: "share", productSlug: pending.productSlug });
+      refresh().catch((e) => notify(e.message));
+      notify("You’re signed in. Add your project to the commons.");
+      return;
+    }
     setModal(null);
     refresh().catch((e) => notify(e.message));
     notify(
@@ -316,12 +364,21 @@ export default function App() {
   const navigation = [
     ["Explore", "/", Compass],
     ["Activity", "/activity", Activity],
+    ["Find alternatives", "/alternatives", RefreshCw],
+    ["Help build", "/build", Layers],
+    ["Build guide", "/guides/build-an-alternative", Compass],
     ["My projects", "/mine", Layers],
     ["Saved projects", "/saved", Bookmark],
     ["Builders", "/builders", Users],
   ];
   const isSelected = (url) =>
-    url === "/" ? route.page === "explore" : path === url;
+    url === "/"
+      ? route.page === "explore"
+      : url === "/alternatives"
+        ? route.page === "alternatives"
+        : url === "/guides/build-an-alternative"
+          ? route.page === "guide"
+          : path === url;
   const pageProps = {
     user,
     navigate,
@@ -354,6 +411,18 @@ export default function App() {
             onClick={() => navigate("/")}
           >
             Discover
+          </button>
+          <button
+            className={route.page === "alternatives" ? "active" : ""}
+            onClick={() => navigate("/alternatives")}
+          >
+            Alternatives
+          </button>
+          <button
+            className={route.page === "build" ? "active" : ""}
+            onClick={() => navigate("/build")}
+          >
+            Help build
           </button>
           <button
             className={
@@ -541,10 +610,33 @@ export default function App() {
                   onRecoveryChange={setRecoveryLock}
                 />
               )}
+              {route.page === "alternatives" && (
+                <AlternativesPage
+                  {...pageProps}
+                  key={route.slug ?? "index"}
+                  slug={route.slug}
+                  catalog={catalog}
+                  projects={projects}
+                  onShare={share}
+                />
+              )}
+              {route.page === "build" && (
+                <BuildPage {...pageProps} projects={projects} onShare={share} />
+              )}
+              {route.page === "guide" && (
+                <StartGuide
+                  key={route.slug ?? "general"}
+                  slug={route.slug}
+                  catalog={catalog}
+                  navigate={navigate}
+                  onShare={share}
+                />
+              )}
               {route.page === "project" && (
                 <ProjectPage
                   {...pageProps}
                   id={route.id}
+                  products={catalog.products}
                   revision={revision}
                   onJoin={join}
                   onEdit={(p) => setModal({ type: "edit", project: p })}
@@ -631,6 +723,8 @@ export default function App() {
           {["share", "edit"].includes(modal.type) && (
             <ProjectForm
               project={modal.project}
+              products={catalog.products}
+              productSlug={modal.productSlug}
               onSuccess={async (p) => {
                 setModal(null);
                 await refresh();

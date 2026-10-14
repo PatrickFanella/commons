@@ -24,6 +24,7 @@ import {
 import { api, categories, dateLabel } from "../api.js";
 import { Avatar, WorldArt, ProjectArt } from "./Art.jsx";
 import { Mark } from "./Mark.jsx";
+import { CatalogDetails, SourceLink } from "./Catalog.jsx";
 import { ErrorMessage, useAction } from "./Forms.jsx";
 export function ProjectCard({ project: p, navigate, onSave }) {
   return (
@@ -140,7 +141,7 @@ export function ProjectsPage({
         (page !== "mine" || p.ownerId === user?.id || p.joined) &&
         (filter !== "Looking for builders" ||
           p.status === "Looking for builders") &&
-        `${p.name} ${p.description} ${p.tags.join(" ")}`
+        `${p.name} ${p.description} ${p.tags.join(" ")} ${p.catalog?.comparisons.map((c) => `${c.product} ${c.workflow}`).join(" ") ?? ""}`
           .toLowerCase()
           .includes(query.toLowerCase()),
     )
@@ -192,9 +193,28 @@ export function ProjectsPage({
               A home for people rebuilding what’s possible. <br />
               Discover open projects, find your people, and get building.
             </p>
-            <button className="primary" onClick={onShare}>
-              Share your project <ArrowUpRight size={17} />
-            </button>
+            <div className="hero-entry-actions">
+              <a
+                className="primary"
+                href="/alternatives"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/alternatives");
+                }}
+              >
+                Find an alternative <ArrowRight size={17} />
+              </a>
+              <a
+                className="secondary"
+                href="/build"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/build");
+                }}
+              >
+                Help build one <ArrowUpRight size={17} />
+              </a>
+            </div>
             <div className="hero-community">
               <Mark size={20} />
               <span>Independent builders. Shared possibilities.</span>
@@ -361,6 +381,7 @@ export function ProjectsPage({
 }
 export function ProjectPage({
   id,
+  products = [],
   user,
   navigate,
   onSave,
@@ -516,27 +537,30 @@ export function ProjectPage({
       </div>
       <div className="detail-action-bar">
         <div className="detail-actions">
-          <button
-            className="primary"
-            disabled={p.ownerId === user?.id || p.external}
-            title={
-              p.external
-                ? "Visit the source repository to contribute"
-                : p.ownerId === user?.id
-                  ? "You own this project"
-                  : undefined
-            }
-            onClick={() => (p.joined ? onJoin(p, false) : onJoin(p, true))}
-          >
-            {p.joined ? <Check size={17} /> : <Plus size={17} />}{" "}
-            {p.external
-              ? "Contribute upstream"
-              : p.ownerId === user?.id
+          {p.external ? (
+            <SourceLink
+              className="primary"
+              href={p.catalog?.contribute ?? p.repo}
+            >
+              Contribute upstream
+            </SourceLink>
+          ) : (
+            <button
+              className="primary"
+              disabled={p.ownerId === user?.id}
+              title={
+                p.ownerId === user?.id ? "You own this project" : undefined
+              }
+              onClick={() => (p.joined ? onJoin(p, false) : onJoin(p, true))}
+            >
+              {p.joined ? <Check size={17} /> : <Plus size={17} />}{" "}
+              {p.ownerId === user?.id
                 ? "Your project"
                 : p.joined
                   ? "Leave project"
                   : "Join the project"}
-          </button>
+            </button>
+          )}
           <button className="secondary" onClick={() => onSave(p)}>
             <Bookmark size={16} fill={p.saved ? "currentColor" : "none"} />
             {p.saved ? "Saved" : "Save project"}
@@ -554,9 +578,11 @@ export function ProjectPage({
         <div className="owner-actions">
           {owner && (
             <>
-              <button onClick={() => onEdit(p)}>
-                <Pencil size={15} /> Edit
-              </button>
+              {(!p.catalog || !p.external) && (
+                <button onClick={() => onEdit(p)}>
+                  <Pencil size={15} /> Edit
+                </button>
+              )}
               <button onClick={() => onDelete(p)}>
                 <Trash2 size={15} /> Delete
               </button>
@@ -604,6 +630,28 @@ export function ProjectPage({
         />
       )}
       <ErrorMessage error={action.error} />
+      {!p.external && p.replaces?.length > 0 && (
+        <section className="project-product-links">
+          <h2>Helps replace</h2>
+          <p>These replacement goals are supplied by this project’s owner.</p>
+          <div className="catalog-links">
+            {p.replaces.map((slug) => (
+              <a
+                className="text-link"
+                key={slug}
+                href={`/alternatives/${slug}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate(`/alternatives/${slug}`);
+                }}
+              >
+                {products.find((x) => x.slug === slug)?.name ?? slug}{" "}
+                <ArrowRight size={15} />
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="detail-tabs">
         {["Overview", "Updates", "Discussion", "Builders"].map((t) => (
           <button
@@ -619,28 +667,44 @@ export function ProjectPage({
         ))}
       </div>
       {tab === "Overview" ? (
-        <div className="overview-grid">
-          <section>
-            <h2>The project</h2>
-            <p className="long-copy">{p.details || p.description}</p>
-            <div className="detail-meta">
-              Shared {dateLabel(p.createdAt)} · Updated{" "}
-              {dateLabel(p.updatedAt || p.createdAt)}
-            </div>
-          </section>
-          <section className="help-box">
-            <h3>
-              <Users size={18} /> There’s a place for you here.
-            </h3>
-            <p>{p.needs}</p>
-            <button
-              className="text-link"
-              onClick={() => selectTab("Discussion")}
-            >
-              Start a conversation <ArrowRight size={15} />
-            </button>
-          </section>
-        </div>
+        <>
+          <CatalogDetails project={p} navigate={navigate} />
+          <div className="overview-grid">
+            <section>
+              <h2>The project</h2>
+              <p className="long-copy">{p.details || p.description}</p>
+              <div className="detail-meta">
+                Shared {dateLabel(p.createdAt)} · Updated{" "}
+                {dateLabel(p.updatedAt || p.createdAt)}
+              </div>
+            </section>
+            <section className="help-box">
+              <h3>
+                <Users size={18} /> There’s a place for you here.
+              </h3>
+              {p.external && p.catalog ? (
+                <>
+                  <p>
+                    Check the maintainers’ contribution guide or issue tracker.
+                    Testing, documentation, translation and design can all be
+                    ways to help.
+                  </p>
+                  <SourceLink href={p.catalog.contribute}>
+                    Find a contribution upstream
+                  </SourceLink>
+                </>
+              ) : (
+                <p>{p.needs}</p>
+              )}
+              <button
+                className="text-link"
+                onClick={() => selectTab("Discussion")}
+              >
+                Start a conversation <ArrowRight size={15} />
+              </button>
+            </section>
+          </div>
+        </>
       ) : tab === "Updates" ? (
         <ProjectUpdates
           project={p}
@@ -675,8 +739,16 @@ export function ProjectPage({
           ) : (
             <div className="empty compact">
               <Users size={28} />
-              <h3>A team starts with one person.</h3>
-              <p>Join and tell people how you’d like to contribute.</p>
+              <h3>
+                {p.external
+                  ? "An independent upstream project."
+                  : "A team starts with one person."}
+              </h3>
+              <p>
+                {p.external
+                  ? "Its maintainers and contributors are listed upstream. This listing does not create a Commons team."
+                  : "Join and tell people how you’d like to contribute."}
+              </p>
             </div>
           )}
         </section>

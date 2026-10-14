@@ -269,9 +269,17 @@ export function AuthForm({
     </>
   );
 }
-export function ProjectForm({ project, onSuccess }) {
+export function ProjectForm({
+  project,
+  products = [],
+  productSlug,
+  onSuccess,
+}) {
   const action = useAction();
   const editing = Boolean(project);
+  const [targets, setTargets] = useState(
+    project?.replaces ?? (productSlug ? [productSlug] : []),
+  );
   return (
     <>
       <span className="eyebrow">MAKE ROOM FOR YOUR IDEA</span>
@@ -284,6 +292,7 @@ export function ProjectForm({ project, onSuccess }) {
         onSubmit={(e) => {
           e.preventDefault();
           const data = Object.fromEntries(new FormData(e.currentTarget));
+          data.replaces = targets;
           data.tags = data.tags
             .split(",")
             .map((t) => t.trim())
@@ -332,6 +341,32 @@ export function ProjectForm({ project, onSuccess }) {
               : "Use the public GitHub or SUBCULT Gitea repository URL."}
           </small>
         </label>
+        <fieldset className="project-targets">
+          <legend>Products this project helps replace</legend>
+          <p>
+            Select up to five. This links your project to their index pages; it
+            does not claim complete feature parity.
+          </p>
+          <div className="target-options">
+            {products.map((p) => (
+              <label key={p.slug}>
+                <input
+                  type="checkbox"
+                  checked={targets.includes(p.slug)}
+                  disabled={targets.length >= 5 && !targets.includes(p.slug)}
+                  onChange={(e) =>
+                    setTargets(
+                      e.target.checked
+                        ? [...targets, p.slug]
+                        : targets.filter((slug) => slug !== p.slug),
+                    )
+                  }
+                />
+                {p.name}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <label>
           A short introduction
           <textarea
