@@ -61,4 +61,12 @@ See [public deployment and scoped rollback](PUBLIC-DEPLOYMENT.md) for exact path
 
 ## Product boundaries
 
-This release is a simple community hub. Recovery uses private keys instead of email. There is no SMTP, social sign-in, repository scraping, file upload service, chat integration, third-party analytics, or automatic notification delivery. Projects link to their source and coordinate through discussions. Run a single application replica; the SQLite design is intended for an initial community deployment, not an unverified multi-node setup.
+The live launch release is a simple community hub. It uses private recovery keys instead of email. There is no SMTP, social sign-in, repository scraping, file upload service, chat integration, third-party analytics, or automatic notification delivery. Projects link to their source and coordinate through discussions. Run a single application replica; the SQLite design is intended for an initial community deployment, not an unverified multi-node setup.
+
+## Community upgrade candidate, October 14, 2026
+
+The checkout contains a locally qualified next release; the public site still runs the verified launch release above. It adds unclaimed GitHub/SUBCULT Gitea listings, repository-control claims, a paginated activity feed, collaborator progress updates, threaded discussions, optional private verified email/password reset, and a durable Brevo account-mail queue with safe aggregate diagnostics. All new listings begin unclaimed; claiming requires a time-limited, account-bound proof file on the default branch. Existing launch project owners remain intact.
+
+The candidate passes 21 automated checks on the development host and in an isolated Node 24 production-image container, production build and mobile browser collaboration/email flows using isolated local test data and a fake mail provider. Activity, discussion and Settings have no body overflow at 390 CSS pixels and no automated axe A/AA violations in the checked states. Runtime Brevo sender qualification returned HTTP 200 from the production app container; noreply@subcult.tv is active. A private pending email overlay is staged on NUC. No public application rollout or real inbox-delivery test was performed.
+
+The [community upgrade plan](superpowers/plans/2026-10-14-community-upgrade.md) records activation, limitations and rollback. Schema version 3 requires a pre-migration off-host backup. A full rollback restores the matching old database as well as the old image; the launch image’s positional discussion inserts cannot use the expanded schema.

@@ -97,27 +97,27 @@ const content = {
     sections: [
       [
         "What we store.",
-        "Your username, display name, profile, password hash, recovery-key hash, account dates, projects, bookmarks, memberships, discussions, and reports are stored on the server. Your plain-text password and recovery key are not stored. Session cookies keep you signed in.",
+        "Your username, display name, profile, password hash, recovery-key hash, account dates, optional private email addresses, expiring account-link hashes, projects, bookmarks, memberships, discussions, progress updates, activity, repository-claim hashes, and reports are stored on the server. Your plain-text password and recovery key are not stored. Session cookies keep you signed in.",
       ],
       [
         "What is public.",
-        "Your username, display name, bio, skills, website, projects, project participation, and discussion messages are public. Project bookmark totals are public; your personal saved-project list is private. Recovery keys and passwords are private. Reports are visible to administrators.",
+        "Your username, display name, bio, skills, website, projects, project participation, and discussion messages are public. Project bookmark totals are public; your personal saved-project list is private. Email addresses, account links, recovery keys and passwords are private. Reports are visible to administrators.",
       ],
       [
         "Cookies and external services.",
-        "Commons uses an essential HttpOnly session cookie. There are no advertising cookies, third-party analytics, or embedded trackers. External repository and website links take you to services with their own policies. Fonts and illustrations are served by this site.",
+        "Commons uses an essential HttpOnly session cookie. There are no advertising cookies, third-party analytics, or embedded trackers. External repository and website links take you to services with their own policies. Fonts and illustrations are served by this site. When account email is enabled, Brevo processes your email address and message contents for verification and password recovery. Queued account emails temporarily contain private links; their contents are cleared after provider acceptance, final failure, or expiry. We do not enroll you in marketing email. Repository verification reads a proof file through the linked Git provider’s public API.",
       ],
       [
         "Retention and deletion.",
-        "Content stays until its author or an administrator removes it. You can delete your account in Settings; this removes your profile, owned projects, discussions, bookmarks, and memberships. Reports may retain anonymized moderation records. Expired sessions are cleaned up. Operational backups can retain removed data until the operator’s backup retention period ends.",
+        "Content stays until its author or an administrator removes it. You can delete your account in Settings; this removes your profile, owned projects, discussions and replies, updates, activity, private email, pending links, bookmarks, and memberships. Reports may retain anonymized moderation records. Expired sessions are cleaned up. Operational backups can retain removed data until the operator’s backup retention period ends.",
       ],
       [
         "Keeping your account safe.",
-        "Use a unique password and keep your recovery key private. Administrators can see moderation reports and manage content, but cannot read your password or recover your private key. If you lose both your password and recovery key, self-service recovery is unavailable.",
+        "Use a unique password and keep your recovery key private. Administrators can see moderation reports and manage content, but cannot read your password or recover your private key. You can also recover through an email address you have verified, when account email is enabled. Without a working password, recovery key, or verified email, self-service recovery is unavailable.",
       ],
       [
         "Questions about your data.",
-        "Use Settings to review or change your public profile, change your password, or delete your account. Contact the site operator for other account or privacy questions.",
+        "Use Settings to review or change your public profile, change your password or private email, or delete your account. Contact the site operator for other account or privacy questions.",
       ],
     ],
   },

@@ -1,3 +1,5 @@
+import ActivityPage from "./components/Activity.jsx";
+import { RequestResetForm, EmailLinkPage } from "./components/AccountEmail.jsx";
 import { Mark } from "./components/Mark.jsx";
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -17,6 +19,7 @@ import {
   RefreshCw,
   Sparkles,
   AlertCircle,
+  Activity,
 } from "lucide-react";
 import { api, setCsrf, categories } from "./api.js";
 import {
@@ -46,6 +49,9 @@ function routeFrom(path) {
     if (
       parts.length === 1 &&
       [
+        "activity",
+        "verify-email",
+        "reset-password",
         "saved",
         "mine",
         "builders",
@@ -145,7 +151,7 @@ export default function App() {
     if (!recoveryLocked) setModal(null);
   };
   const navigate = (url) => {
-    if (recoveryLocked) return;
+    if (recoveryRef.current) return;
     history.pushState({}, "", url);
     setPath(location.pathname);
     setCategory("All projects");
@@ -231,6 +237,9 @@ export default function App() {
             mine: "My projects",
             about: "The idea",
             settings: "Profile & account",
+            activity: "Around the commons",
+            "verify-email": "Verify email",
+            "reset-password": "Reset password",
             admin: "Moderation",
             privacy: "Privacy",
             terms: "Terms",
@@ -306,6 +315,7 @@ export default function App() {
   };
   const navigation = [
     ["Explore", "/", Compass],
+    ["Activity", "/activity", Activity],
     ["My projects", "/mine", Layers],
     ["Saved projects", "/saved", Bookmark],
     ["Builders", "/builders", Users],
@@ -315,6 +325,7 @@ export default function App() {
   const pageProps = {
     user,
     navigate,
+    emailEnabled: !!site.emailEnabled,
     onSave: save,
     onLogin: login,
     notify,
@@ -519,6 +530,17 @@ export default function App() {
                   onShare={share}
                 />
               )}{" "}
+              {route.page === "activity" && (
+                <ActivityPage {...pageProps} revision={revision} />
+              )}
+              {["verify-email", "reset-password"].includes(route.page) && (
+                <EmailLinkPage
+                  key={route.page}
+                  {...pageProps}
+                  mode={route.page}
+                  onRecoveryChange={setRecoveryLock}
+                />
+              )}
               {route.page === "project" && (
                 <ProjectPage
                   {...pageProps}
@@ -592,6 +614,9 @@ export default function App() {
           onClose={closeModal}
           locked={recoveryLocked}
         >
+          {modal.type === "request-reset" && (
+            <RequestResetForm onMode={(type) => setModal({ type })} />
+          )}
           {["login", "register", "recover"].includes(modal.type) && (
             <AuthForm
               key={modal.type}
@@ -600,6 +625,7 @@ export default function App() {
               onSession={authSuccess}
               onDone={authDone}
               onRecoveryChange={setRecoveryLock}
+              emailEnabled={!!site.emailEnabled}
             />
           )}{" "}
           {["share", "edit"].includes(modal.type) && (
@@ -673,7 +699,7 @@ export default function App() {
           {modal.type === "delete-message" && (
             <ConfirmForm
               title="Remove this message?"
-              description="The discussion message will be permanently removed."
+              description="This message and its replies will be permanently removed."
               label="Delete message"
               onConfirm={async () => {
                 await api(`/messages/${modal.messageId}`, { method: "DELETE" });

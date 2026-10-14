@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 
 const app = createApp();
+app.locals.mail.start();
 const port = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65535)
   throw new Error("PORT must be between 1 and 65535.");
@@ -11,7 +12,8 @@ let stopping = false;
 function stop() {
   if (stopping) return;
   stopping = true;
-  server.close(() => {
+  server.close(async () => {
+    await app.locals.mail.stop();
     app.locals.close();
     process.exit(0);
   });

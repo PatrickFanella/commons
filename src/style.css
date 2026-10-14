@@ -1878,7 +1878,9 @@ main {
   }
   .nav-section {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: thin;
     gap: 4px;
   }
   .sidebar-label,
@@ -1889,6 +1891,7 @@ main {
     display: none;
   }
   .side-link {
+    flex: 0 0 auto;
     width: auto;
     padding: 9px 8px;
     font-size: 11px;
@@ -3518,5 +3521,175 @@ form label small {
   }
   .hero-copy p {
     max-width: 100%;
+  }
+}
+
+.activity-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+.activity-list {
+  max-width: 940px;
+}
+.activity-entry {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 28px;
+  gap: 20px;
+  padding: 26px 0;
+  border-bottom: var(--line) solid var(--ink);
+}
+.activity-entry a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.activity-entry a:hover {
+  text-decoration: underline;
+}
+.activity-byline {
+  margin: 0 0 8px;
+  color: var(--ink-2);
+}
+.activity-byline a {
+  font-weight: 700;
+}
+.activity-entry h2 {
+  margin: 0 0 10px;
+  font-size: 23px;
+}
+.activity-entry h3 {
+  margin: 12px 0 6px;
+  font-size: 16px;
+}
+.activity-excerpt {
+  color: var(--ink-2);
+  max-width: 70ch;
+}
+.activity-entry time,
+.update-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.activity-open {
+  align-self: center;
+}
+.unclaimed-label {
+  display: inline-block;
+  margin-left: 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  border: 1px solid var(--ink-3);
+  padding: 3px 7px;
+}
+.feed-more {
+  margin-top: 24px;
+}
+.email-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-wrap: anywhere;
+}
+.email-link-panel {
+  max-width: 640px;
+  margin: 40px auto;
+}
+.claim-panel {
+  margin: 24px 0;
+}
+.claim-panel ol {
+  padding-left: 22px;
+  line-height: 1.9;
+}
+.claim-path {
+  overflow-wrap: anywhere;
+}
+.claim-proof {
+  padding: 18px;
+  background: var(--paper);
+  border: 1px solid var(--ink-3);
+  font-family: var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.project-updates {
+  max-width: 900px;
+  padding-top: 22px;
+}
+.update-card {
+  padding: 24px;
+  margin: 20px 0;
+  border: var(--line) solid var(--ink);
+  background: var(--paper-2);
+  scroll-margin-top: 100px;
+}
+.update-card h2 {
+  margin: 16px 0;
+}
+.update-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.update-card .long-copy {
+  overflow-wrap: anywhere;
+}
+.delete-confirm,
+.reply-target {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--ink-3);
+  background: var(--paper-tint);
+}
+.discussion article.discussion-reply {
+  margin-left: 36px;
+  padding-left: 20px;
+  border-left: 2px solid var(--ink-3);
+}
+.discussion article {
+  scroll-margin-top: 100px;
+}
+.reply-context {
+  color: var(--ink-2);
+}
+@media (max-width: 600px) {
+  .activity-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .activity-entry {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .activity-entry h2 {
+    font-size: 20px;
+  }
+  .activity-entry .avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .activity-open {
+    display: none;
+  }
+  .unclaimed-label {
+    margin-left: 0;
+    margin-top: 8px;
+    display: block;
+    width: fit-content;
+  }
+  .update-meta {
+    flex-direction: column;
+    gap: 4px;
+  }
+  .update-card {
+    padding: 18px;
+  }
+  .discussion article.discussion-reply {
+    margin-left: 12px;
+    padding-left: 12px;
   }
 }

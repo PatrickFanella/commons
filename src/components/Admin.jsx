@@ -21,12 +21,18 @@ export default function AdminPage({ user, navigate, refresh, notify }) {
   async function load() {
     setError("");
     try {
-      const [r, p, u] = await Promise.all([
+      const [r, p, u, mail] = await Promise.all([
         api("/admin/reports"),
         api("/admin/projects"),
         api("/admin/users"),
+        api("/admin/email"),
       ]);
-      setData({ reports: r.reports, projects: p.projects, users: u.users });
+      setData({
+        reports: r.reports,
+        projects: p.projects,
+        users: u.users,
+        mail,
+      });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -69,7 +75,7 @@ export default function AdminPage({ user, navigate, refresh, notify }) {
       </div>
       <ErrorMessage error={error || action.error} />
       <div className="detail-tabs">
-        {["Reports", "Projects", "Members"].map((t) => (
+        {["Reports", "Projects", "Members", "Email"].map((t) => (
           <button
             key={t}
             className={tab === t ? "active" : ""}
@@ -87,14 +93,42 @@ export default function AdminPage({ user, navigate, refresh, notify }) {
       ) : (
         data && (
           <div className="moderation-list">
-            {tab === "Reports" ? (
+            {tab === "Email" ? (
+              <section className="settings-panel">
+                <h2>Account email</h2>
+                <p>
+                  {data.mail.configured
+                    ? "Brevo is configured."
+                    : "Brevo is not configured. Email features are disabled."}
+                </p>
+                <p>
+                  Queued: {data.mail.counts.queued || 0} · Accepted by Brevo:{" "}
+                  {data.mail.counts.sent || 0} · Failed:{" "}
+                  {data.mail.counts.failed || 0}
+                </p>
+                {data.mail.errors?.map((error) => (
+                  <p key={error.code}>
+                    Provider error: {error.code} ({error.count})
+                  </p>
+                ))}
+                <p>
+                  Provider acceptance does not confirm inbox delivery. These
+                  counts cover unexpired account links; old records are removed
+                  automatically.
+                </p>
+              </section>
+            ) : tab === "Reports" ? (
               data.reports.length ? (
                 data.reports.map((r) => (
                   <article key={r.id} className={r.resolved ? "resolved" : ""}>
                     <div className="moderation-title">
                       <Flag size={17} />
                       <strong>
-                        {r.messageId ? "Discussion report" : "Project report"}
+                        {r.updateId
+                          ? "Progress update report"
+                          : r.messageId
+                            ? "Discussion report"
+                            : "Project report"}
                       </strong>
                       <span>{r.resolved ? "Resolved" : "Open"}</span>
                     </div>
@@ -116,6 +150,12 @@ export default function AdminPage({ user, navigate, refresh, notify }) {
                           {r.message.author?.username || "deleted account"}
                         </strong>
                         <p className="long-copy">{r.message.text}</p>
+                      </div>
+                    )}
+                    {r.update && (
+                      <div className="report-context">
+                        <strong>Reported update: {r.update.title}</strong>
+                        <p className="long-copy">{r.update.body}</p>
                       </div>
                     )}
                     <small>
@@ -144,6 +184,23 @@ export default function AdminPage({ user, navigate, refresh, notify }) {
                             Hide project
                           </button>
                         </>
+                      )}
+                      {r.updateId && (
+                        <button
+                          className="secondary"
+                          disabled={action.busy}
+                          onClick={() =>
+                            action.run(async () => {
+                              await api(`/updates/${r.updateId}`, {
+                                method: "DELETE",
+                              });
+                              await load();
+                              notify("Update removed.");
+                            })
+                          }
+                        >
+                          Remove update
+                        </button>
                       )}
                       {r.messageId && (
                         <button

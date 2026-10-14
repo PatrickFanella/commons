@@ -1,3 +1,4 @@
+import { EmailSettings } from "./AccountEmail.jsx";
 import React, { useEffect, useState } from "react";
 import {
   Users,
@@ -167,7 +168,14 @@ export function BuilderPage({ username, user, navigate, onSave }) {
     </div>
   );
 }
-export function SettingsPage({ user, onRefresh, onDelete, onLogin, notify }) {
+export function SettingsPage({
+  user,
+  onRefresh,
+  onDelete,
+  onLogin,
+  notify,
+  emailEnabled,
+}) {
   const profile = useAction(),
     password = useAction();
   if (!user)
@@ -261,6 +269,12 @@ export function SettingsPage({ user, onRefresh, onDelete, onLogin, notify }) {
           </form>
         </section>
         <div>
+          <EmailSettings
+            user={user}
+            enabled={emailEnabled}
+            onRefresh={onRefresh}
+            notify={notify}
+          />
           <section className="settings-panel">
             <h2>
               <Shield size={18} /> Change password
