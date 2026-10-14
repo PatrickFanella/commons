@@ -1,4 +1,5 @@
 import ActivityPage from "./components/Activity.jsx";
+import { pageMetadata } from "../shared/seo.js";
 import { RequestResetForm, EmailLinkPage } from "./components/AccountEmail.jsx";
 import { Mark } from "./components/Mark.jsx";
 import React, { useState, useEffect, useRef } from "react";
@@ -134,13 +135,15 @@ function Modal({ children, title, onClose, locked }) {
     </div>
   );
 }
-export default function App() {
-  const [path, setPath] = useState(location.pathname),
+export default function App({ initialPath, initialData } = {}) {
+  const [path, setPath] = useState(initialPath ?? location.pathname),
     [user, setUser] = useState(null),
-    [projects, setProjects] = useState([]),
-    [catalog, setCatalog] = useState({ products: [], directories: [] }),
+    [projects, setProjects] = useState(initialData?.projects ?? []),
+    [catalog, setCatalog] = useState(
+      initialData?.catalog ?? { products: [], directories: [] },
+    ),
     [builders, setBuilders] = useState([]),
-    [loading, setLoading] = useState(true),
+    [loading, setLoading] = useState(!initialData),
     [error, setError] = useState(""),
     [category, setCategory] = useState("All projects"),
     [modal, setModal] = useState(null),
@@ -148,7 +151,9 @@ export default function App() {
     [revision, setRevision] = useState(0),
     [recoveryLocked, setRecoveryLocked] = useState(false),
     [menu, setMenu] = useState(false),
-    [site, setSite] = useState({ operatorName: "", contactEmail: "" });
+    [site, setSite] = useState(
+      initialData?.site ?? { operatorName: "", contactEmail: "" },
+    );
   const recoveryRef = useRef(false),
     pendingShareRef = useRef(null),
     authUserRef = useRef(null),
@@ -246,6 +251,49 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
+    if (loading) return;
+    const meta = pageMetadata(path, { projects, catalog });
+    const publicOrigin = document.querySelector(
+      'meta[property="og:url"]',
+    )?.content;
+    const origin = publicOrigin
+      ? new URL(publicOrigin).origin
+      : location.origin;
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!meta.index) canonical?.remove();
+    else {
+      if (!canonical) {
+        canonical = document.createElement("link");
+        canonical.rel = "canonical";
+        document.head.appendChild(canonical);
+      }
+      canonical.href = origin + path;
+    }
+    for (const [attribute, key, value] of [
+      ["name", "description", meta.description],
+      [
+        "name",
+        "robots",
+        meta.index
+          ? "index, follow, max-image-preview:large"
+          : "noindex, follow",
+      ],
+      ["property", "og:title", meta.title],
+      ["property", "og:description", meta.description],
+      ["property", "og:url", origin + path],
+      ["property", "og:image", origin + "/og.png"],
+      ["name", "twitter:title", meta.title],
+      ["name", "twitter:description", meta.description],
+      ["name", "twitter:image", origin + "/og.png"],
+    ]) {
+      let tag = document.querySelector(`meta[${attribute}="${key}"]`);
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(attribute, key);
+        document.head.appendChild(tag);
+      }
+      tag.content = value;
+    }
     const title =
       route.page === "project"
         ? projects.find((p) => p.id === route.id)?.name || "Project"
@@ -273,8 +321,9 @@ export default function App() {
             guidelines: "Community guidelines",
             404: "Page not found",
           }[route.page];
-    document.title = `${title} — Commons`;
-  }, [path, projects, catalog]);
+    document.title =
+      meta.index || meta.status === 404 ? meta.title : `${title} — Commons`;
+  }, [path, projects, catalog, loading]);
   const notify = (message) => setToast(message);
   const login = () => setModal({ type: "login" });
   const requireUser = (action) => {
@@ -635,6 +684,7 @@ export default function App() {
               {route.page === "project" && (
                 <ProjectPage
                   {...pageProps}
+                  initialData={initialData?.projectDetail}
                   id={route.id}
                   products={catalog.products}
                   revision={revision}

@@ -52,13 +52,27 @@ export function ProjectCard({ project: p, navigate, onSave }) {
       </button>
       <div className="card-body">
         <div className="card-title">
-          <button onClick={() => navigate(`/projects/${p.id}`)}>
+          <a
+            href={`/projects/${encodeURIComponent(p.id)}`}
+            onClick={(event) => {
+              if (
+                event.button === 0 &&
+                !event.metaKey &&
+                !event.ctrlKey &&
+                !event.shiftKey &&
+                !event.altKey
+              ) {
+                event.preventDefault();
+                navigate(`/projects/${encodeURIComponent(p.id)}`);
+              }
+            }}
+          >
             <span className={"project-icon " + p.art}>
               {p.letter || p.name[0]}
             </span>
             <h3>{p.name}</h3>
             <ArrowUpRight size={16} />
-          </button>
+          </a>
           <button
             className={"save-button " + (p.saved ? "saved" : "")}
             aria-label={(p.saved ? "Unsave " : "Save ") + p.name}
@@ -380,6 +394,7 @@ export function ProjectsPage({
   );
 }
 export function ProjectPage({
+  initialData,
   id,
   products = [],
   user,
@@ -394,12 +409,12 @@ export function ProjectPage({
   refresh,
   revision,
 }) {
-  const [data, setData] = useState(null),
+  const [data, setData] = useState(initialData ?? null),
     [messages, setMessages] = useState([]),
     [updates, setUpdates] = useState([]),
     [replyTo, setReplyTo] = useState(null),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(true),
+    [loading, setLoading] = useState(!initialData),
     [tab, setTab] = useState("Overview");
   const action = useAction();
   const request = useRef(0),

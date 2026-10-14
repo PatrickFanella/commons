@@ -16,7 +16,7 @@ test("production deep links serve the SPA beneath a hidden checkout without expo
   mkdirSync(dist, { recursive: true });
   writeFileSync(
     join(dist, "index.html"),
-    "<!doctype html><title>Commons route test</title>",
+    '<!doctype html><html><head><title>Commons route test</title></head><body><!-- Commons route test --><div id="root"></div></body></html>',
   );
   writeFileSync(join(dist, ".private"), "must never be served");
   const { base } = await harness(t, {
@@ -25,6 +25,7 @@ test("production deep links serve the SPA beneath a hidden checkout without expo
     publicUrl: "https://commons.example",
     operatorName: "Test operator",
     contactEmail: "test@example.com",
+    seedCatalog: true,
   });
   for (const path of [
     "/",
@@ -41,8 +42,43 @@ test("production deep links serve the SPA beneath a hidden checkout without expo
     assert.match(await response.text(), /Commons route test/);
   }
   const hidden = await fetch(base.replace(/\/api$/, "") + "/.private");
+  assert.equal(hidden.status, 404);
   assert.ok(!(await hidden.text()).includes("must never be served"));
   assert.equal((await fetch(base + "/missing")).status, 404);
+  const origin = base.replace(/\/api$/, "");
+  const robots = await fetch(origin + "/robots.txt");
+  assert.match(robots.headers.get("content-type"), /text\/plain/);
+  assert.match(
+    await robots.text(),
+    /Sitemap: https:\/\/commons.example\/sitemap.xml/,
+  );
+  const sitemapResponse = await fetch(origin + "/sitemap.xml");
+  assert.match(sitemapResponse.headers.get("content-type"), /application\/xml/);
+  const xml = await sitemapResponse.text();
+  assert.match(xml, /\/alternatives\/photoshop<\/loc>/);
+  assert.match(xml, /\/projects\/catalog-photocraft<\/loc>/);
+  assert.doesNotMatch(xml, /\/admin|\/settings|\/reset-password/);
+  for (const path of [
+    "/alternatives/missing",
+    "/projects/missing",
+    "/missing",
+  ]) {
+    const response = await fetch(origin + path);
+    assert.equal(response.status, 404);
+    assert.equal(response.headers.get("x-robots-tag"), "noindex");
+  }
+  const settings = await fetch(origin + "/settings");
+  assert.equal(settings.headers.get("x-robots-tag"), "noindex");
+  const html = await (await fetch(origin + "/alternatives/photoshop")).text();
+  assert.match(html, /Open-source alternatives to Adobe Photoshop/);
+  assert.match(
+    html,
+    /rel="canonical" href="https:\/\/commons.example\/alternatives\/photoshop"/,
+  );
+  assert.match(
+    html,
+    /property="og:image" content="https:\/\/commons.example\/og.png"/,
+  );
 });
 const input = {
   name: "Open canvas",

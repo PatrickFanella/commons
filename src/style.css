@@ -653,11 +653,13 @@ main {
   justify-content: space-between;
   align-items: center;
 }
-.card-title > button:first-child {
+.card-title > a:first-child {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0;
+  color: inherit;
+  text-decoration: none;
 }
 .project-icon {
   display: flex;
@@ -699,7 +701,7 @@ main {
   font-weight: 700;
   letter-spacing: -0.3px;
 }
-.card-title > button:first-child > svg {
+.card-title > a:first-child > svg {
   color: var(--ink-2);
   margin-left: 1px;
   width: 13px;

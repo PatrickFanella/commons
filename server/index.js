@@ -1,6 +1,15 @@
 import { createApp } from "./app.js";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const app = createApp({ seedCatalog: true });
+const entry = resolve("dist-ssr/entry-server.js");
+if (process.env.NODE_ENV === "production" && !existsSync(entry))
+  throw new Error("Run npm run build before starting the production server.");
+const render = existsSync(entry)
+  ? (await import(pathToFileURL(entry).href)).render
+  : undefined;
+const app = createApp({ seedCatalog: true, render });
 app.locals.mail.start();
 const port = Number(process.env.PORT ?? 3000);
 if (!Number.isInteger(port) || port < 1 || port > 65535)

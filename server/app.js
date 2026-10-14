@@ -13,7 +13,8 @@ import {
   createHash,
 } from "node:crypto";
 import { resolve } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { renderPage, sitemap } from "../shared/seo.js";
 import { openDatabase } from "./db.js";
 import { importCatalog, products, directories } from "./catalog.js";
 
@@ -622,7 +623,7 @@ export function createApp(options = {}) {
       ),
     };
   };
-  app.get("/api/catalog", (req, res) => {
+  const publicCatalog = () => {
     const entries = all(
       "SELECT c.metadata,p.id,p.owner_id FROM catalog_entries c JOIN projects p ON p.id=c.project_id LEFT JOIN users u ON u.id=p.owner_id WHERE p.hidden=0 AND (u.id IS NULL OR u.suspended=0)",
     ).map((row) => ({
@@ -630,7 +631,7 @@ export function createApp(options = {}) {
       projectId: row.id,
       ownerId: row.owner_id,
     }));
-    res.json({
+    return {
       products: products.map((p) => ({
         ...p,
         count: entries.filter((e) =>
@@ -650,8 +651,9 @@ export function createApp(options = {}) {
         ]).size,
       })),
       directories,
-    });
-  });
+    };
+  };
+  app.get("/api/catalog", (req, res) => res.json(publicCatalog()));
   app.get("/api/projects", (req, res) =>
     res.json({
       projects: all(
@@ -1111,12 +1113,81 @@ export function createApp(options = {}) {
   );
   const dist = options.distPath ?? resolve("dist");
   if (existsSync(resolve(dist, "index.html"))) {
+    const template = readFileSync(resolve(dist, "index.html"), "utf8");
+    app.get("/index.html", (req, res) => res.redirect(301, "/"));
+    // Use the same visibility rules as the anonymous API. Never render sessions,
+    // saved projects, email addresses, drafts or moderation data into public HTML.
+    const publicData = () => ({
+      projects: all(
+        "SELECT p.* FROM projects p LEFT JOIN users u ON u.id=p.owner_id WHERE p.hidden=0 AND (u.id IS NULL OR u.suspended=0) ORDER BY p.created_at DESC",
+      ).map((p) => project(p, null)),
+      catalog: publicCatalog(),
+      site: { operatorName, contactEmail },
+    });
+    app.get("/robots.txt", (req, res) =>
+      res
+        .type("text/plain")
+        .send(
+          `User-agent: *\nDisallow: /api/\nDisallow: /admin\nSitemap: ${origin}/sitemap.xml\n`,
+        ),
+    );
+    app.get("/sitemap.xml", (req, res) =>
+      res
+        .set("Cache-Control", "no-store")
+        .type("application/xml")
+        .send(sitemap(origin, publicData())),
+    );
     app.use(
       express.static(dist, { index: false, maxAge: production ? "1h" : 0 }),
     );
-    app.get("/{*path}", (req, res) =>
-      res.sendFile("index.html", { root: resolve(dist) }),
-    );
+    app.get("/{*path}", (req, res, next) => {
+      try {
+        const path = req.path.replace(/\/$/, "") || "/";
+        if (req.path !== path)
+          return res.redirect(
+            301,
+            path +
+              (req.url.includes("?")
+                ? req.url.slice(req.url.indexOf("?"))
+                : ""),
+          );
+        const data = publicData();
+        const match = path.match(/^\/projects\/([^/]+)$/);
+        let id;
+        try {
+          id = match && decodeURIComponent(match[1]);
+        } catch {
+          id = null;
+        }
+        const found = match && data.projects.find((p) => p.id === id);
+        if (found) {
+          const members = all(
+            "SELECT u.* FROM users u JOIN memberships m ON u.id=m.user_id WHERE m.project_id=? AND u.suspended=0",
+            found.id,
+          );
+          if (found.ownerId)
+            members.unshift(
+              get(
+                "SELECT * FROM users WHERE id=? AND suspended=0",
+                found.ownerId,
+              ),
+            );
+          data.projectDetail = {
+            project: found,
+            members: members.filter(Boolean).map(publicUser),
+          };
+        }
+        const page = renderPage(template, path, origin, data, options.render);
+        if (!page.meta.index) res.set("X-Robots-Tag", "noindex");
+        res
+          .set("Cache-Control", "no-store")
+          .status(page.meta.status)
+          .type("html")
+          .send(page.html);
+      } catch (error) {
+        next(error);
+      }
+    });
   }
   app.use((error, req, res, next) => {
     if (error.status)

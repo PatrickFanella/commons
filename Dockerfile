@@ -4,6 +4,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY index.html ./
 COPY src ./src
+COPY shared ./shared
 COPY public ./public
 RUN npm run build
 
@@ -15,7 +16,9 @@ RUN npm ci --omit=dev && npm cache clean --force \
     && mkdir -p /data /backups && chown node:node /data /backups \
     && chmod 700 /data /backups
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/dist-ssr ./dist-ssr
 COPY server ./server
+COPY shared ./shared
 COPY scripts ./scripts
 USER node
 EXPOSE 3000
