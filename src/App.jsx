@@ -1,6 +1,6 @@
+import { Mark } from "./components/Mark.jsx";
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Globe2,
   Plus,
   ArrowUpRight,
   ArrowRight,
@@ -211,9 +211,8 @@ export default function App() {
       setModal({ type: "login" });
       setToast("Your session expired. Sign in to continue.");
     };
-    window.addEventListener("openworld:session-expired", expire);
-    return () =>
-      window.removeEventListener("openworld:session-expired", expire);
+    window.addEventListener("commons:session-expired", expire);
+    return () => window.removeEventListener("commons:session-expired", expire);
   }, []);
   useEffect(() => {
     if (!toast) return;
@@ -225,7 +224,7 @@ export default function App() {
       route.page === "project"
         ? projects.find((p) => p.id === route.id)?.name || "Project"
         : {
-            explore: "Build what’s possible",
+            explore: "Rebuild familiar tools in the open",
             builders: "Meet the builders",
             builder: route.username,
             saved: "Saved projects",
@@ -238,7 +237,7 @@ export default function App() {
             guidelines: "Community guidelines",
             404: "Page not found",
           }[route.page];
-    document.title = `${title} — Open World`;
+    document.title = `${title} — Commons`;
   }, [path, projects]);
   const notify = (message) => setToast(message);
   const login = () => setModal({ type: "login" });
@@ -301,7 +300,7 @@ export default function App() {
     refresh().catch((e) => notify(e.message));
     notify(
       user
-        ? "Welcome to your open world."
+        ? "Welcome to the commons."
         : "Your password was reset. Sign in with your new password.",
     );
   };
@@ -335,10 +334,8 @@ export default function App() {
             navigate("/");
           }}
         >
-          <Globe2 size={30} strokeWidth={1.7} />
-          <span>
-            open world<span className="brand-dot">.</span>
-          </span>
+          <Mark size={28} />
+          <span>commons</span>
         </a>
         <nav className="top-nav" aria-label="Main navigation">
           <button
@@ -468,7 +465,7 @@ export default function App() {
           </div>
           <div className="sidebar-card">
             <div className="little-globe">
-              <Globe2 size={24} />
+              <Mark size={22} />
               <Sparkles size={13} />
             </div>
             <h3>
@@ -482,24 +479,24 @@ export default function App() {
               Make it open.
             </p>
             <button onClick={() => navigate("/about")}>
-              What is Open World? <ArrowUpRight size={14} />
+              What is Commons? <ArrowUpRight size={14} />
             </button>
           </div>
           <div className="sidebar-footer">
-            <span>A world worth building.</span>
+            <span>Shared ground, kept together.</span>
             <div>
               <button onClick={() => navigate("/guidelines")}>
                 Community guidelines
               </button>
               <span>↗</span>
             </div>
-            <small>© {new Date().getFullYear()} Open World</small>
+            <small>© {new Date().getFullYear()} Commons</small>
           </div>
         </aside>
         <main id="main-content" tabIndex={-1}>
           {loading ? (
             <div className="loading" role="status">
-              <Globe2 size={25} /> Opening the world…
+              <Mark size={22} /> Opening the commons…
             </div>
           ) : error ? (
             <div className="empty">
@@ -615,7 +612,7 @@ export default function App() {
                 notify(
                   modal.type === "edit"
                     ? "Project updated."
-                    : "Your project is out in the world.",
+                    : "Your project is in the commons.",
                 );
               }}
             />

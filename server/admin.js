@@ -14,7 +14,7 @@ if (
 }
 const db = openDatabase(
   process.env.DATABASE_PATH ??
-    resolve(process.env.DATA_DIR ?? "data", "open-world.sqlite"),
+    resolve(process.env.DATA_DIR ?? "data", "commons.sqlite"),
 );
 try {
   if (command === "promote") {
@@ -37,7 +37,7 @@ try {
         "storytold",
         "PhotoCraft",
         "An open-source image editor built in Rust, exploring a clean-room rebuild of familiar Photoshop workflows.",
-        "Curated external reference. Open World is not affiliated with the repository or its maintainer. Check the repository for current details and licensing.",
+        "Curated external reference. Commons is not affiliated with the repository or its maintainer. Check the repository for current details and licensing.",
         repo,
         "Creative tools",
         JSON.stringify(["Rust", "Image editing"]),

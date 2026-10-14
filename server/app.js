@@ -160,7 +160,7 @@ export function createApp(options = {}) {
     openDatabase(
       options.dbPath ??
         process.env.DATABASE_PATH ??
-        resolve(process.env.DATA_DIR ?? "data", "open-world.sqlite"),
+        resolve(process.env.DATA_DIR ?? "data", "commons.sqlite"),
     );
   const app = express();
   app.locals.db = db;
@@ -286,7 +286,7 @@ export function createApp(options = {}) {
     updatedAt: m.updated_at,
     author: publicUser(get("SELECT * FROM users WHERE id=?", m.user_id)),
   });
-  const sessionCookie = production ? "__Host-openworld" : "openworld";
+  const sessionCookie = production ? "__Host-commons" : "commons";
   const cookieOptions = {
     httpOnly: true,
     sameSite: "lax",

@@ -41,14 +41,14 @@ function RecoveryKey({ code, onDone }) {
   const download = () => {
     const blob = new Blob(
       [
-        `Open World recovery key\n\n${code}\n\nKeep this key private. It can reset your password. It is shown only once.\n`,
+        `Commons recovery key\n\n${code}\n\nKeep this key private. It can reset your password. It is shown only once.\n`,
       ],
       { type: "text/plain" },
     );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "open-world-recovery-key.txt";
+    a.download = "commons-recovery-key.txt";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
@@ -93,7 +93,7 @@ function RecoveryKey({ code, onDone }) {
         I saved my recovery key somewhere private.
       </label>
       <button className="primary" disabled={!ack} onClick={onDone}>
-        Continue to Open World <ArrowRight size={16} />
+        Continue to Commons <ArrowRight size={16} />
       </button>
     </>
   );
@@ -128,7 +128,7 @@ export function AuthForm({
       <span className="eyebrow">THERE’S A PLACE FOR YOU HERE</span>
       <h2>
         {register
-          ? "Join the open world."
+          ? "Join the commons."
           : recover
             ? "Find your way back."
             : "Welcome back."}
@@ -269,7 +269,7 @@ export function ProjectForm({ project, onSuccess }) {
   return (
     <>
       <span className="eyebrow">MAKE ROOM FOR YOUR IDEA</span>
-      <h2>{editing ? "Keep the world updated." : "Share a project."}</h2>
+      <h2>{editing ? "Keep the commons updated." : "Share a project."}</h2>
       <p className="form-intro">
         Share your own open-source work. Tell people what’s possible and where
         they can help.

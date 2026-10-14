@@ -409,7 +409,7 @@ test("account deletion cascades personal and owned content without dangling refe
 });
 
 test("durable SQLite survives app restart, production cookies and configuration guard", async (t) => {
-  const directory = mkdtempSync(join(tmpdir(), "open-world-test-"));
+  const directory = mkdtempSync(join(tmpdir(), "commons-test-"));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const dbPath = join(directory, "app.sqlite");
   const app = createApp({ dbPath, quiet: true });
@@ -447,12 +447,12 @@ test("durable SQLite survives app restart, production cookies and configuration 
   const secure = await harness(t, {
     production: true,
     publicUrl: "https://community.example",
-    operatorName: "Open World Test Operator",
+    operatorName: "Commons Test Operator",
     contactEmail: "contact@example.com",
   });
   const registered = await secure.client().register("secure");
   const cookie = registered.response.headers.get("set-cookie");
-  assert.match(cookie, /__Host-openworld=/);
+  assert.match(cookie, /__Host-commons=/);
   assert.match(cookie, /Secure/);
   assert.match(cookie, /HttpOnly/);
   assert.match(cookie, /SameSite=Lax/);

@@ -129,7 +129,7 @@ export function BuilderPage({ username, user, navigate, onSave }) {
         )}
       </div>
       <p className="profile-bio long-copy">
-        {b.bio || "A new face in the open world."}
+        {b.bio || "A new face in the commons."}
       </p>
       <div className="tags">
         {b.skills.map((s) => (
@@ -184,7 +184,7 @@ export function SettingsPage({ user, onRefresh, onDelete, onLogin, notify }) {
   return (
     <>
       <div className="page-heading">
-        <span className="eyebrow">YOUR PLACE IN THE WORLD</span>
+        <span className="eyebrow">YOUR PLACE IN THE COMMONS</span>
         <h1>Profile & account.</h1>
         <p>A little about you, and the keys to your account.</p>
       </div>

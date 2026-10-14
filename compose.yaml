@@ -1,6 +1,6 @@
 services:
   app:
-    image: open-world:${IMAGE_TAG:-local}
+    image: commons:${IMAGE_TAG:-local}
     build: .
     init: true
     restart: unless-stopped
@@ -8,7 +8,7 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      DATABASE_PATH: /data/open-world.sqlite
+      DATABASE_PATH: /data/commons.sqlite
       PUBLIC_URL: ${PUBLIC_URL:?Set PUBLIC_URL to the public HTTPS origin}
       OPERATOR_NAME: ${OPERATOR_NAME:?Set OPERATOR_NAME to the public operator identity}
       CONTACT_EMAIL: ${CONTACT_EMAIL:?Set CONTACT_EMAIL to a monitored public contact email}

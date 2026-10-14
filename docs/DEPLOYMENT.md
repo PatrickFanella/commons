@@ -1,6 +1,6 @@
-# Deploying Open World
+# Deploying Commons
 
-Open World runs as one Node 24+ process with one SQLite database. Keep one application replica. The production service serves the built frontend and API from the same origin. The database contains accounts, password hashes, hashed recovery keys and sessions, projects, discussions, bookmarks, membership and reports. Treat backups as private account data.
+Commons runs as one Node 24+ process with one SQLite database. Keep one application replica. The production service serves the built frontend and API from the same origin. The database contains accounts, password hashes, hashed recovery keys and sessions, projects, discussions, bookmarks, membership and reports. Treat backups as private account data.
 
 The repository provides deployment artifacts; a public domain, HTTPS proxy, hosting machine and off-host backup destination must be chosen before public launch. No production host or DNS is changed by these instructions.
 
@@ -16,7 +16,7 @@ Compose reads `.env`; direct Node execution requires exporting its environment y
 | `PUBLIC_URL` | Exact public HTTPS origin. |
 | `OPERATOR_NAME` | Public publisher/operator identity displayed by the site. Required in production; 1–120 characters with no surrounding whitespace or control characters. |
 | `CONTACT_EMAIL` | Monitored public account/privacy contact email displayed by the site. Required in production; a valid email address up to 254 characters. |
-| `DATABASE_PATH` | SQLite path; Compose fixes it at `/data/open-world.sqlite`. Direct execution defaults to `DATA_DIR/open-world.sqlite`, or `./data/open-world.sqlite`. |
+| `DATABASE_PATH` | SQLite path; Compose fixes it at `/data/commons.sqlite`. Direct execution defaults to `DATA_DIR/commons.sqlite`, or `./data/commons.sqlite`. |
 | `HOST`, `PORT` | Direct Node defaults to `127.0.0.1:3000`; Compose uses `0.0.0.0:3000` inside the container. |
 | `TRUST_PROXY` | `1` trusts one forwarding proxy hop. Leave `0` when directly accessing the service. Never expose the internal listener to untrusted clients while trusting forwarding headers. |
 | `APP_PORT` | Compose's host port, bound only to `127.0.0.1`; default `3000`. |
@@ -64,7 +64,7 @@ Run backups daily and before every application update. `backup.mjs` uses SQLite 
 docker compose exec -T app node scripts/backup.mjs "/backups/open-world-$(date -u +%Y%m%dT%H%M%SZ).sqlite"
 ```
 
-For a host scheduler, use the checkout's absolute path with `docker compose --project-directory /absolute/path/to/open-world`; make sure the same `.env`, project name and volume are selected. A successful command exits zero and prints the verified destination. Monitor failures and available disk space.
+For a host scheduler, use the checkout's absolute path with `docker compose --project-directory /absolute/path/to/commons`; make sure the same `.env`, project name and volume are selected. A successful command exits zero and prints the verified destination. Monitor failures and available disk space.
 
 Keep at least 7 daily snapshots and 4 weekly snapshots; retain the pre-update snapshot until the update is accepted. Copy snapshots to the chosen off-host destination over an encrypted transport, with access limited to operators. Encrypt stored copies when the destination does not already provide protected storage. Do not prune the only verified off-host copy. The backup destination and retention scheduler are operator configuration, not provisioned by this repository. Test a restore in an isolated volume before deleting older backups.
 
@@ -78,12 +78,12 @@ docker compose stop app
 docker compose run --rm --no-deps app sh -c '
   archive="/data/pre-restore-$(date -u +%Y%m%dT%H%M%SZ)"
   mkdir -m 700 "$archive" || exit 1
-  for file in /data/open-world.sqlite /data/open-world.sqlite-wal /data/open-world.sqlite-shm /data/open-world.sqlite-journal; do
+  for file in /data/commons.sqlite /data/commons.sqlite-wal /data/commons.sqlite-shm /data/commons.sqlite-journal; do
     if [ -f "$file" ]; then mv "$file" "$archive/" || exit 1; fi
   done
 '
 docker compose run --rm --no-deps app node scripts/restore.mjs \
-  /backups/SELECTED-BACKUP.sqlite /data/open-world.sqlite --app-stopped
+  /backups/SELECTED-BACKUP.sqlite /data/commons.sqlite --app-stopped
 docker compose up -d app
 docker compose ps
 curl --fail http://127.0.0.1:3000/api/health
@@ -94,8 +94,8 @@ Replace `SELECTED-BACKUP.sqlite` with the chosen filename. If restore fails, kee
 The same tool works outside Docker:
 
 ```sh
-DATABASE_PATH=/private/data/open-world.sqlite node scripts/backup.mjs /private/backups/snapshot.sqlite
-node scripts/restore.mjs /private/backups/snapshot.sqlite /private/new-data/open-world.sqlite --app-stopped
+DATABASE_PATH=/private/data/commons.sqlite node scripts/backup.mjs /private/backups/snapshot.sqlite
+node scripts/restore.mjs /private/backups/snapshot.sqlite /private/new-data/commons.sqlite --app-stopped
 ```
 
 ## Update and rollback
