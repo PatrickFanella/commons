@@ -739,7 +739,12 @@ export default function App({ initialPath, initialData } = {}) {
             </>
           )}
           <footer className="main-footer">
-            <span>Made for people who make things.</span>
+            <span>
+              Made for people who make things.{" "}
+              <a href="https://subcult.tv/support">Support SUBCULT</a>, the
+              studio building Commons. Contributions go to the studio, not to
+              listed projects or builders.
+            </span>
             <div>
               <button onClick={() => navigate("/guidelines")}>
                 Guidelines
