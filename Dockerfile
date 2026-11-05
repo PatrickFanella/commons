@@ -20,6 +20,9 @@ COPY --from=build /app/dist-ssr ./dist-ssr
 COPY server ./server
 COPY shared ./shared
 COPY scripts ./scripts
+ARG SOURCE_REVISION=unknown
+LABEL org.opencontainers.image.revision=$SOURCE_REVISION
+RUN node --input-type=module -e 'import { writeFileSync } from "node:fs"; const revision = process.env.SOURCE_REVISION; if (revision !== "unknown" && !/^[0-9a-f]{40}$/.test(revision)) throw new Error("Invalid source revision"); writeFileSync("dist/build-info.json", JSON.stringify({ schema_version: 1, source_commit: revision }) + "\n");'
 USER node
 EXPOSE 3000
 VOLUME ["/data"]
