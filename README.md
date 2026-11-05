@@ -4,7 +4,7 @@
 
 A community hub for people rebuilding familiar tools in the open. Software made by people, for people, in public. Discover projects, share your work, find collaborators, and coordinate through progress updates and threaded discussions.
 
-This checkout includes the next community release. Its features are locally verified; public rollout is pending. See [launch status](docs/LAUNCH-STATUS.md).
+This checkout includes the community release. See [launch status](docs/LAUNCH-STATUS.md) for its feature checks and dated deployment evidence, and [automatic production delivery](docs/CI-DEPLOYMENT.md) for release identity and deployment gates.
 
 ## Run locally
 
@@ -72,6 +72,7 @@ The Docker/Compose package runs one unprivileged application replica with a pers
 
 - [Brand and design system](docs/BRAND.md)
 - [Deployment and backup/restore instructions](docs/DEPLOYMENT.md)
+- [Automatic production delivery and data qualification](docs/CI-DEPLOYMENT.md)
 - [Launch status and remaining external steps](docs/LAUNCH-STATUS.md)
 - [Implementation plan](docs/superpowers/plans/2026-10-13-launch.md)
 - [Community upgrade plan and activation status](docs/superpowers/plans/2026-10-14-community-upgrade.md)

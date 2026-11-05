@@ -1138,7 +1138,14 @@ export function createApp(options = {}) {
         .send(sitemap(origin, publicData())),
     );
     app.use(
-      express.static(dist, { index: false, maxAge: production ? "1h" : 0 }),
+      express.static(dist, {
+        index: false,
+        maxAge: production ? "1h" : 0,
+        setHeaders(res, file) {
+          if (file === resolve(dist, "build-info.json"))
+            res.setHeader("Cache-Control", "no-store");
+        },
+      }),
     );
     app.get("/{*path}", (req, res, next) => {
       try {
