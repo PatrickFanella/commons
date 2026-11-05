@@ -1,5 +1,7 @@
 # Commons
 
+![Commons identity](docs/brand/commons/readme-lockup.png)
+
 A community hub for people rebuilding familiar tools in the open. Software made by people, for people, in public. Discover projects, share your work, find collaborators, and coordinate through progress updates and threaded discussions.
 
 This checkout includes the next community release. Its features are locally verified; public rollout is pending. See [launch status](docs/LAUNCH-STATUS.md).
@@ -81,3 +83,7 @@ The Docker/Compose package runs one unprivileged application replica with a pers
 Code is released under the MIT License; brand assets are CC BY 4.0; bundled fonts are under the SIL Open Font License. See `docs/BRAND.md` for the full table.
 
 Public hosting, domain/DNS, operator identity/contact, a real administrator and backup destination are deployment choices. The repository does not provision or change shared infrastructure.
+
+## Brand assets
+
+The product identity and selected public exports are recorded in [the brand handoff](docs/brand/commons/GUIDE.md) and [source hashes](docs/brand/commons/export.json). Regenerate from SUBCULT Studio with `python3 studio/scripts/export_remaining_brand.py commons /path/to/this/repository`; use `--check` to verify the export without writing.
