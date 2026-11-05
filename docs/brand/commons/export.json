@@ -1,0 +1,79 @@
+{
+  "studio_repository": "subculture-collective/subcult-tv",
+  "studio_revision": "6907e56c181949c1d99064dbc38ae9fe660a66d0",
+  "brand": "commons",
+  "files": [
+    {
+      "source": "studio/brands/commons/GUIDE.md",
+      "target": "docs/brand/commons/GUIDE.md",
+      "sha256": "378d22287199b4acb9d88c9b59be3a09404fd1d72459622d0b9f4e8187d56bb2",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/readme-lockup.png",
+      "target": "docs/brand/commons/readme-lockup.png",
+      "sha256": "93e344446afd5fd68b94b4baca675d143be3ad732a1f0753350b9a72a81634d5",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/social/avatar.png",
+      "target": "docs/brand/commons/avatar.png",
+      "sha256": "5d4b9049ea6f1681679a9343ea7974f63571653562691e30401c5a181d1443a6",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/favicon.svg",
+      "target": "public/brand/commons/favicon.svg",
+      "sha256": "4fc951fe56bc70cb6ca040f7404d6252560465bca5211d2cd57585a73d004c8a",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/favicon.ico",
+      "target": "public/brand/commons/favicon.ico",
+      "sha256": "6ded704a2387016cbde76e18a2fd286fe9bd206155635428436ddba523d62b95",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/apple-touch-icon.png",
+      "target": "public/brand/commons/apple-touch-icon.png",
+      "sha256": "d508b85c7eeac96a6c7c7428aa186305753be50611b674cc319a8d944ad1af2b",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/og.png",
+      "target": "public/brand/commons/og.png",
+      "sha256": "109bdf1b662bbaaa73efa292e11f5b1b0022af6ccabd1affbfa15d7ace30f72c",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/mark.svg",
+      "target": "public/brand/commons/mark.svg",
+      "sha256": "8b5bb04cb8dde5d992860d8f89867b5edd11b30e907dca35dada05e3e919d14a",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/favicon.svg",
+      "target": "public/favicon.svg",
+      "sha256": "4fc951fe56bc70cb6ca040f7404d6252560465bca5211d2cd57585a73d004c8a",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/favicon.ico",
+      "target": "public/favicon.ico",
+      "sha256": "6ded704a2387016cbde76e18a2fd286fe9bd206155635428436ddba523d62b95",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/apple-touch-icon.png",
+      "target": "public/apple-touch-icon.png",
+      "sha256": "d508b85c7eeac96a6c7c7428aa186305753be50611b674cc319a8d944ad1af2b",
+      "transformation": "unchanged copy"
+    },
+    {
+      "source": "studio/brands/commons/product/og.png",
+      "target": "public/og.png",
+      "sha256": "109bdf1b662bbaaa73efa292e11f5b1b0022af6ccabd1affbfa15d7ace30f72c",
+      "transformation": "unchanged copy"
+    }
+  ]
+}
