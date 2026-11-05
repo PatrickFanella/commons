@@ -12,6 +12,7 @@ import uuid
 
 APP = "commons-app"
 ROOT = Path("/srv/apps/projects/commons")
+STATE = Path.home() / ".local/state/fleet-deploy/commons"
 REPOSITORY = "https://git.subcult.tv/subculture-collective/commons"
 RESTIC = "sftp:onnwee@10.0.0.50:/mnt/data2/backups/nuc/restic"
 SFTP = "-i /home/onnwee/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/root/.ssh/known_hosts -o ServerAliveInterval=10 -o ServerAliveCountMax=2"
@@ -63,6 +64,8 @@ def restic(args, *, output=None):
 def qualify(image, revision):
     os.umask(0o077)
     assert re.fullmatch(r"[0-9a-f]{40}", revision)
+    registration = json.loads((STATE / "registration.json").read_text())
+    assert file_hash(ROOT / ".env").hex() == registration["env_file_sha256"], "Configuration changed; requalify the runtime baseline"
     current = inspect(APP)
     candidate = inspect(image, "image")
     assert candidate["Config"]["Labels"]["org.opencontainers.image.revision"] == revision
@@ -104,13 +107,14 @@ def qualify(image, revision):
         restic(["dump", snapshot, str(source)], output=output)
     assert file_hash(source) == file_hash(recovered)
     save("isolated-native-restore")
+    restored = directory / "restored/commons.sqlite"
+    restored.parent.mkdir(mode=0o700)
     common = ["docker", "run", "--rm", "--network", "none", "--read-only",
               "--tmpfs", "/tmp:uid=1000,gid=1000,mode=1777,size=32m",
-              "--tmpfs", "/data:uid=1000,gid=1000,mode=0700",
-              "--mount", "type=bind,src=" + str(directory) + ",dst=/qualification"]
+              "--mount", "type=bind,src=" + str(recovered) + ",dst=/backup.sqlite,readonly",
+              "--mount", "type=bind,src=" + str(restored.parent) + ",dst=/data"]
     run(common + ["--entrypoint", "node", image, "scripts/restore.mjs",
-                  "/qualification/offhost-restored.sqlite", "/qualification/restored/commons.sqlite", "--app-stopped"])
-    restored = directory / "restored/commons.sqlite"
+                  "/backup.sqlite", "/data/commons.sqlite", "--app-stopped"])
     assert fingerprint(restored) == original
     save("isolated-candidate-startup")
     name = "commons-ci-qualification-" + uuid.uuid4().hex[:12]
@@ -136,6 +140,7 @@ def qualify(image, revision):
         assert healthy.returncode == 0, "Isolated restored candidate did not become ready"
         assert fingerprint(restored) == original, "Candidate changed schema, account records or protected row counts"
         assert inspect(APP)["Id"] == current["Id"] and inspect(APP)["Image"] == current["Image"]
+        assert file_hash(ROOT / ".env").hex() == registration["env_file_sha256"]
         checkpoint.update(result="qualified", schema_accounts_counts="PASS", offhost_byte_exact_restore="PASS", provider_network="disabled")
         save("complete")
         print(json.dumps({key: checkpoint[key] for key in ["result", "revision", "image", "offhost_snapshot", "schema_accounts_counts", "offhost_byte_exact_restore"]}))

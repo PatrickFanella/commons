@@ -21,6 +21,8 @@ Registration is operator-owned under
 baseline in `commons-compose.json` beside it. Runtime guards refuse configuration
 drift. Keep environment references bound to `/srv/apps/projects/commons/.env`;
 never copy its Brevo credential into the baseline, source, CI or image.
+The data hook also checks the registered environment-file hash before and after
+qualification, so a configuration edit requires a fresh runtime baseline.
 
 Dedicated `HOMELAB_DEPLOY_KEY` and `HOMELAB_KNOWN_HOSTS` secrets invoke a pinned
 fleet receiver with only this profile and service `app`. The receiver requires
